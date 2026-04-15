@@ -1,0 +1,14 @@
+.claude/
+.DS_Store
+.vercel
+.next/
+.turbo/
+.vscode/
+
+node_modules/
+out/
+output/
+
+.env*.local
+next-env.d.ts
+tsconfig.tsbuildinfo
