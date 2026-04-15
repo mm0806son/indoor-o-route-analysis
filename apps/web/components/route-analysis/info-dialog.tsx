@@ -1,0 +1,127 @@
+"use client"
+
+import { X, Box, Maximize2, Map, EyeOff, Info, Menu, Play, Pause, Square, Target, Layers, ArrowUpDown, Repeat, BarChart3, Brain } from "lucide-react";
+import { TrendingUpDown } from "lucide-react";
+import { Button } from "@indoor-o-route-analysis/ui";
+
+interface RouteAnalysisInfoDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function RouteAnalysisInfoDialog({
+  isOpen,
+  onClose,
+}: RouteAnalysisInfoDialogProps) {
+  if (!isOpen) return null;
+
+  const iconClass = "h-3.5 w-3.5 inline-block align-text-bottom mr-1";
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-background border border-border rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        {/* Header with close button */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold flex items-center gap-2"><BarChart3 className="h-5 w-5" />Route Analysis Guide</h2>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-auto p-6">
+          <div className="space-y-5 text-sm text-muted-foreground">
+
+            <div>
+              <p className="font-medium text-foreground mb-1">Introduction</p>
+              <p>
+                Route Analysis is the core tool for evaluating course quality and understanding route choices.
+                For each leg between controls, it calculates all viable routes and ranks them by distance.
+                This helps course setters understand whether legs offer meaningful route choice, assess difficulty
+                based on the number of decision points, and identify whether the intended challenge matches the
+                actual routing options available to competitors.
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-foreground mb-1">Toolbar Buttons</p>
+              <ul className="space-y-1.5 ml-2">
+                <li><Box className={iconClass} /><strong>3D / Map view</strong> &mdash; Switch between the 2D map view and the 3D model view. Only available when 3D polygons are defined.</li>
+                <li><Maximize2 className={iconClass} /><strong>Frame all</strong> &mdash; Reset the camera to frame all geometry (3D mode only).</li>
+                <li>
+                  <svg className="h-3.5 w-3.5 inline-block align-text-bottom mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="4" y1="4" x2="20" y2="20" /><line x1="4" y1="20" x2="20" y2="4" />
+                  </svg>
+                  <strong>Show/hide edges</strong> &mdash; Toggle visibility of graph edges with length on the map. Edges with &ldquo;ignore length&rdquo; (e.g. stairs) are excluded.
+                </li>
+                <li><Map className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
+                <li><Brain className={iconClass} /><strong>Decision points</strong> &mdash; Toggle visibility of decision point markers on the selected route. A decision point is a node where more than two edges meet, indicating a junction where the runner must choose a direction. Only available when a single route is selected.</li>
+                <li><Info className={iconClass} /><strong>Info</strong> &mdash; Opens this guide dialog.</li>
+                <li><Menu className={iconClass} /><strong>Menu</strong> &mdash; Export options:
+                  <ul className="list-disc list-inside ml-4 space-y-0.5">
+                    <li><strong>Export for training app</strong> &mdash; Export course data for the training application</li>
+                    <li><strong>Export map</strong> &mdash; Save the map with routes as an image or PDF</li>
+                    <li><strong>Export video</strong> &mdash; Create an animated video of the route playback</li>
+                    <li><strong>Export report</strong> &mdash; Generate an HTML report with difficulty charts and route details</li>
+                    <li><strong>Export track (GPX)</strong> &mdash; Export the selected route as a GPX track file</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="font-medium text-foreground mb-1">Playback Controls</p>
+              <ul className="space-y-1.5 ml-2">
+                <li><Play className={iconClass} /><Pause className={iconClass} /><strong>Play / Pause</strong> &mdash; Start or pause the route animation for the selected route. Disabled when no route is selected.</li>
+                <li><Square className={iconClass} /><strong>Stop</strong> &mdash; Stop and reset the animation to the beginning.</li>
+                <li><strong>Speed selector</strong> &mdash; Choose playback speed: 1x, 2x, 3x, 4x, 5x, or 10x.</li>
+                <li><Layers className={iconClass} /><strong>Hide upper levels</strong> &mdash; In 3D mode, hide floors above the runner&apos;s current position for better visibility.</li>
+                <li><Target className={iconClass} /><strong>Follow</strong> &mdash; Keep the animated runner centered in the viewport.</li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="font-medium text-foreground mb-1">Analysis Options</p>
+              <ul className="space-y-1.5 ml-2">
+                <li><TrendingUpDown className={iconClass} /><strong>Show all routes</strong> &mdash; Include all route variations (including minor differences). When off, only distinctly different routes are shown.</li>
+                <li><strong>Scoring model</strong> &mdash; Choose which difficulty scoring model to use for the analysis.</li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="font-medium text-foreground mb-1">Route Information Icons</p>
+              <ul className="space-y-1.5 ml-2">
+                <li><Brain className={iconClass} /><strong>Decision points</strong> &mdash; Number of intersections where multiple paths are available.</li>
+                <li><ArrowUpDown className={iconClass} /><strong>Stairs</strong> &mdash; Number of stair segments along the route.</li>
+                <li><Repeat className={iconClass} /><strong>Repetition</strong> &mdash; Ratio of how much of the route overlaps with previously visited segments.</li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="font-medium text-foreground mb-1">Recommended Workflow</p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Select a course from the dropdown menu</li>
+                <li>Review the difficulty chart to identify the most challenging legs</li>
+                <li>Click on a leg to view all alternative routes</li>
+                <li>Compare route distances and decision point counts</li>
+                <li>Use the play button to animate routes and understand the competitor experience</li>
+                <li>Check for unintended shortcuts or overly complex routing</li>
+                <li>Export the analysis as an HTML report for documentation or sharing</li>
+                <li>Iterate on course design based on your findings</li>
+              </ol>
+            </div>
+
+            <div>
+              <p className="font-medium text-foreground mb-1">Understanding Difficulty</p>
+              <p>
+                Difficulty is calculated based on distance, decision points, and route complexity. Higher numbers
+                indicate more challenging legs. The difficulty chart shows the relative difficulty of each leg.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

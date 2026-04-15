@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns="http://objorke.github.io/indoor-o-route-analysis/graph-data"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:iof="http://www.orienteering.org/datastandard/3.0"
+            targetNamespace="http://www.orienteering.org/datastandard/3.0/extensions/graph-analysis/1.0"
+            elementFormDefault="qualified"
+            attributeFormDefault="unqualified"
+            version="1.0">
+
+  <xsd:import namespace="http://www.orienteering.org/datastandard/3.0" schemaLocation="IOF.xsd"/>
+
+  <xsd:complexType name="DifficultyScoringModel" mixed="false">
+    <xsd:annotation>
+      <xsd:documentation>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:simpleContent>
+      <xsd:extension base="xsd:string">
+        <xsd:attribute name="version" type="xsd:string" use="optional">
+          <xsd:annotation>
+            <xsd:documentation>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:attribute>
+      </xsd:extension>
+    </xsd:simpleContent>
+  </xsd:complexType>
+
+  <xsd:element name="Graph">
+    <xsd:annotation>
+      <xsd:documentation>
+        Defines a graph structure with nodes/vertices and edges, to be used as an extension in IOF CourseData.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="Node" type="Node" minOccurs="0" maxOccurs="unbounded"/>
+        <xsd:element name="Edge" type="Edge" minOccurs="0" maxOccurs="unbounded"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+  <xsd:element name="Polygon">
+  <!-- TODO -->
+  </xsd:element>
+
+  <xsd:complexType name="Node">
+    <xsd:annotation>
+      <xsd:documentation>
+        A node in the graph, representing a position on the map.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:element name="Id" type="iof:Id">
+        <xsd:annotation>
+          <xsd:documentation>
+            Unique identifier for the node.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="MapPosition" type="iof:MapPosition">
+        <xsd:annotation>
+          <xsd:documentation>
+            The position of the node on the map.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="Edge">
+    <xsd:annotation>
+      <xsd:documentation>
+        A connection between two nodes in the graph.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:element name="From" type="iof:Id">
+        <xsd:annotation>
+          <xsd:documentation>
+            The identifier of the start node/control.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="To" type="iof:Id">
+        <xsd:annotation>
+          <xsd:documentation>
+            The identifier of the end node/control.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="Label" type="xsd:string" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            Label or name for the edge.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="ReverseLabel" type="xsd:string" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            Label or name for the edge when traversed in reverse (if two-way).
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="OneWay" type="xsd:boolean" minOccurs="0" default="false">
+        <xsd:annotation>
+          <xsd:documentation>
+            Indicates if the edge can only be traversed from node `From` to node `To`.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="IgnoreLength" type="xsd:boolean" minOccurs="0" default="false">
+        <xsd:annotation>
+          <xsd:documentation>
+            If true, the geometric length of this edge is ignored (e.g. infinite speed or teleport).
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="LevelChange" type="xsd:boolean" minOccurs="0" default="false">
+        <xsd:annotation>
+          <xsd:documentation>
+            Indicates a change in floor/level.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+
+
+  <xsd:element name="EventId" type="xsd:string">
+    <xsd:annotation>
+      <xsd:documentation>
+        Helper element to store the internal event ID.
+      </xsd:documentation>
+    </xsd:annotation>
+  </xsd:element>
+
+  <xsd:element name="CourseId" type="xsd:string">
+    <xsd:annotation>
+      <xsd:documentation>
+        Helper element to store the internal course ID.
+      </xsd:documentation>
+    </xsd:annotation>
+  </xsd:element>
+
+  <xsd:element name="Level" type="xsd:integer">
+    <xsd:annotation>
+      <xsd:documentation>
+        Defines the level (floor) for a control.
+        This element is intended to be used only within the Extensions element of an iof:Control.
+      </xsd:documentation>
+    </xsd:annotation>
+  </xsd:element>
+
+  <xsd:element name="Route">
+    <xsd:annotation>
+      <xsd:documentation>
+        Defines route choice properties (like length and description) for a leg.
+        This element is intended to be used only within the Extensions element of an iof:CourseControl.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="Description" type="xsd:string" minOccurs="0"/>
+        <xsd:element name="Length" type="xsd:double" minOccurs="0"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+  <xsd:element name="CustomRoutes">
+    <xsd:annotation>
+      <xsd:documentation>
+        Defines a collection of custom routes for courses.
+        This element is intended to be used within the Extensions element of an iof:CourseData.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="CustomRoute" type="CustomRoute" minOccurs="0" maxOccurs="unbounded"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+  <xsd:complexType name="CustomRoute">
+    <xsd:annotation>
+      <xsd:documentation>
+        A custom route for a course with user-defined paths.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:element name="Id" type="iof:Id">
+        <xsd:annotation>
+          <xsd:documentation>
+            Unique identifier for the custom route.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="Name" type="xsd:string">
+        <xsd:annotation>
+          <xsd:documentation>
+            Human-readable name for the route.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="CourseId" type="iof:Id">
+        <xsd:annotation>
+          <xsd:documentation>
+            Reference to the course this route belongs to.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="Timestamp" type="xsd:dateTime" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            When this route was created or last modified.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="Leg" type="CustomRouteLeg" minOccurs="0" maxOccurs="unbounded">
+        <xsd:annotation>
+          <xsd:documentation>
+            Individual legs that comprise this route.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="CustomRouteLeg">
+    <xsd:annotation>
+      <xsd:documentation>
+        A leg in a custom route with a defined path through graph nodes.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:element name="FromControlId" type="iof:Id">
+        <xsd:annotation>
+          <xsd:documentation>
+            The control this leg starts from.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="ToControlId" type="iof:Id">
+        <xsd:annotation>
+          <xsd:documentation>
+            The control this leg ends at.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="Waypoint" type="RouteWaypoint" minOccurs="0" maxOccurs="unbounded">
+        <xsd:annotation>
+          <xsd:documentation>
+            Sequence of nodes that form the path.
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="RouteWaypoint">
+    <xsd:annotation>
+      <xsd:documentation>
+        A node visited in a route leg, optionally with a timestamp/elapsed time.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:attribute name="nodeId" type="xsd:string" use="required"/>
+    <xsd:attribute name="legTime" type="xsd:double" use="optional"/>
+  </xsd:complexType>
+
+  <xsd:element name="Stairs">
+    <xsd:annotation>
+      <xsd:documentation>
+        Defines a list of stairs (identifiers or labels) traversed in a route.
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="Stair" type="xsd:string" minOccurs="0" maxOccurs="unbounded"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+</xsd:schema>

@@ -1,0 +1,22 @@
+{
+  "name": "route-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "route-cli": "./index.ts"
+  },
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx index.ts"
+  },
+  "dependencies": {
+    "@indoor-o-route-analysis/core": "workspace:*",
+    "linkedom": "^0.18.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

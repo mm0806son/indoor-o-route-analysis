@@ -1,0 +1,23 @@
+{
+  "name": "indoor-o-route-analysis",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev --filter=web",
+    "test": "turbo test",
+    "test:run": "turbo test:run",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "web": "turbo dev --filter=web",
+    "mcp-server": "turbo dev --filter=mcp-server",
+    "batch-analysis": "pnpm --filter batch-analysis start",
+    "generate-training-data": "pnpm --filter generate-training-data start",
+    "route-cli": "pnpm --filter route-cli start --",
+    "convert": "pnpm --filter convert start"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.17"
+  }
+}

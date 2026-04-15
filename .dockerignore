@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Dependencies
+node_modules
+.pnpm-store
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build artifacts
+.next
+out
+dist
+build
+
+# Development
+.env.local
+.env.*.local
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Testing
+.vitest
+coverage
+.nyc_output
+
+# Documentation
+docs
+README.md
+README.genAI.md
+CHANGELOG.md
+LICENSE
+
+# Source files (not needed in runtime)
+tsconfig.json
+next.config.mjs
+vitest.config.ts
+eslint.config.mjs
+postcss.config.mjs
+components.json
+
+# Scripts
+scripts
+generate-pwa-icons.sh
+
+# Development config
+.env
+.env.example
+
+# IDE and editor files
+.editorconfig
+.prettierrc
+.prettierignore
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Misc
+IDEAS.md
+pnpm-workspace.yaml
