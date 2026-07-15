@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Map, EyeOff, GitCommitHorizontal, Waypoints, Info, MousePointer2, Play, Square, Navigation, Wrench, Pickaxe } from "lucide-react";
+import { X, Map as MapIcon, EyeOff, GitCommitHorizontal, Waypoints, Info, MousePointer2, Play, Square, Navigation, Wrench, Pickaxe } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 
 interface ModifyGraphInfoDialogProps {
@@ -48,7 +48,7 @@ export default function ModifyGraphInfoDialog({
               <ul className="space-y-1.5 ml-2 text-muted-foreground">
                 <li><GitCommitHorizontal className={iconClass} /><strong>Show nodes</strong> &mdash; Show or hide all graph nodes on the map.</li>
                 <li><Waypoints className={iconClass} /><strong>Show edges</strong> &mdash; Show or hide all graph edges on the map.</li>
-                <li><Map className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
+                <li><MapIcon className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
                 <li><Info className={iconClass} /><strong>Info</strong> &mdash; Opens this guide dialog.</li>
               </ul>
             </div>

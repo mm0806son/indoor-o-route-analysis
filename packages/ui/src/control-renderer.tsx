@@ -62,6 +62,8 @@ interface LegRenderProps {
   color?: string;
   width?: number;
   filter?: string;
+  /** Stable identifier for the React key, e.g. a loop index. Falls back to rounded coordinates when omitted - only safe when a single leg is rendered per call, since two different legs can round to the same pixel position (e.g. a course revisiting the same corridor). */
+  key?: string | number;
 }
 
 export class ControlRenderer {
@@ -82,11 +84,12 @@ export class ControlRenderer {
     };
   }
 
-  static renderLeg({ from, to, color = COURSE_COLOR, width = LEG_STROKE_WIDTH, filter }: LegRenderProps): ReactNode {
+  static renderLeg({ from, to, color = COURSE_COLOR, width = LEG_STROKE_WIDTH, filter, key: keyHint }: LegRenderProps): ReactNode {
     const coords = this.getLegCoordinates(from, to);
-    // Use a composite key based on coordinates as we don't have IDs here
-    const key = `leg-${Math.round(from.x)}-${Math.round(from.y)}-${Math.round(to.x)}-${Math.round(to.y)}`;
-    
+    const key = keyHint !== undefined
+      ? `leg-${keyHint}`
+      : `leg-${Math.round(from.x)}-${Math.round(from.y)}-${Math.round(to.x)}-${Math.round(to.y)}`;
+
     return (
       <line
         key={key}

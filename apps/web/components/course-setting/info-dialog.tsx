@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Palette, Lightbulb, Link, Info, Map, EyeOff, Plus, ArrowUp, ArrowDown, Trash2, Target, Pencil, Edit3, Wand2 } from "lucide-react";
+import { X, Palette, Lightbulb, Link, Info, Map as MapIcon, EyeOff, Plus, ArrowUp, ArrowDown, Trash2, Target, Pencil, Edit3, Wand2 } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 
 interface CourseSettingInfoDialogProps {
@@ -50,7 +50,7 @@ export default function CourseSettingInfoDialog({
             <div>
               <p className="font-medium text-foreground mb-1">Toolbar Buttons</p>
               <ul className="space-y-1.5 ml-2">
-                <li><Map className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through three states: full map &rarr; dimmed map &rarr; hidden map. Helps see controls and graph more clearly.</li>
+                <li><MapIcon className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through three states: full map &rarr; dimmed map &rarr; hidden map. Helps see controls and graph more clearly.</li>
                 <li><Palette className={iconClass} /><strong>Difficulty colors</strong> &mdash; Color available control positions based on the difficulty of the leg from the previous control. Helps find controls that create interesting route choices.</li>
                 <li><Lightbulb className={iconClass} /><strong>Suggestions</strong> &mdash; Show a panel of suggested next controls ranked by difficulty. Useful for quickly finding good control placements.</li>
                 <li><Link className={iconClass} /><strong>Auto-add to course</strong> &mdash; When enabled, clicking an existing control or creating a new one automatically adds it to the current course sequence.</li>

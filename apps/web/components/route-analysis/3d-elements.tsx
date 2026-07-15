@@ -2,22 +2,22 @@
 import { useRef, useEffect, useMemo } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Polygon, Node, Edge } from "@indoor-o-route-analysis/core";
+import type { Polygon, Node, Edge } from "@indoor-o-route-analysis/core";
 import { edgeKey } from "@indoor-o-route-analysis/core";
 import type { MapData } from "@indoor-o-route-analysis/core";
-import { 
-  findPolygonForPoint, 
-  isPointInPolygon, 
-  ROUTE_HEIGHT_OFFSET 
+import {
+  findPolygonForPoint,
+  isPointInPolygon,
+  ROUTE_HEIGHT_OFFSET
 } from "@indoor-o-route-analysis/core";
-import { mapToWorld, worldToVector3 } from "@indoor-o-route-analysis/core";
+import { mapToWorld, worldToVector3 } from "@indoor-o-route-analysis/core/3d";
 
 /** Radial segments around the tube cross-section (higher = smoother circle). */
 const TUBE_RADIAL_SEGMENTS = 12;
 
 export interface RouteSegment {
   points: { x: number; y: number; level?: number }[];
-  isTeleport: boolean;
+  isMapSegmentTransition: boolean;
   isIgnoreLength?: boolean;
   color?: string;
 }
@@ -782,7 +782,7 @@ export function RouteVisualizer({
 
         const getPoint3D = (p: { x: number; y: number; level?: number }) => {
           let level = p.level;
-          let polygon = undefined;
+          let polygon: (typeof levelPolygons)[number] | undefined;
 
           if (level === undefined) {
             polygon = levelPolygons.find((poly) => isPointInPolygon(p, poly.points));

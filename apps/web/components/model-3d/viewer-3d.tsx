@@ -5,8 +5,9 @@ import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { useAppData } from "@indoor-o-route-analysis/ui";
-import { mapToWorld, worldToMap, worldToVector3, getPolygonElevation, getEventTransform, getPageIndexForEventPos } from "@indoor-o-route-analysis/core";
+import { getEventTransform, getPageIndexForEventPos } from "@indoor-o-route-analysis/core";
 import type { MapData, Polygon } from "@indoor-o-route-analysis/core";
+import { mapToWorld, worldToMap, worldToVector3, getPolygonElevation } from "@indoor-o-route-analysis/core/3d";
 
 // Lazy-loaded pdfjs instance
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -382,7 +383,9 @@ function Scene({
       if (mesh.geometry) mesh.geometry.dispose();
       if (mesh.material) {
         if (Array.isArray(mesh.material)) {
-          mesh.material.forEach((mat) => mat.dispose());
+          mesh.material.forEach((mat) => {
+            mat.dispose();
+          });
         } else {
           mesh.material.dispose();
         }

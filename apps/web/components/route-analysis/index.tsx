@@ -8,7 +8,7 @@ import { usePdfUrl } from "@indoor-o-route-analysis/ui";
 import type { MapData } from "@indoor-o-route-analysis/core";
 import type { RouteInfo } from "@indoor-o-route-analysis/core";
 import RouteAnalysisPropertiesPanel from "./properties-panel";
-import { VideoExportDialog, type VideoExportSettings } from "./video-export-dialog";
+import { VideoExportDialog, type VideoExportSettings } from "@/components/shared/video-export-dialog";
 import { ExportNaming } from "@indoor-o-route-analysis/core";
 import { getCourseControlLabels, getActualCourseControls } from "@indoor-o-route-analysis/core";
 import type { RouteAnalysisMapViewerHandle } from "./map-viewer";
@@ -24,6 +24,7 @@ const RouteAnalysisMapViewer = dynamic<{
   showBackgroundMap: boolean;
   showEdges: boolean;
   showDecisionPoints: boolean;
+  showBranchingPoints: boolean;
   isPlaying: boolean;
   playReset: number;
   followPlayback: boolean;
@@ -55,8 +56,10 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
   const [isMapMuted, setIsMapMuted] = useState(false);
   const [showEdges, setShowEdges] = useState(false);
   const [showDecisionPoints, setShowDecisionPoints] = useState(false);
+  const [showBranchingPoints, setShowBranchingPoints] = useState(false);
   const [playReset, setPlayReset] = useState(0);
   const [followPlayback, setFollowPlayback] = useState(true);
+  const [autoAdvance, setAutoAdvance] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(4); // Default 4x speed
   const [findAllRoutes, setFindAllRoutes] = useState(false);
   const [hideUpperLevels, setHideUpperLevels] = useState(true);
@@ -343,7 +346,7 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
   }, []);
 
   // Calculate total legs count for auto-advance
-  const _totalLegs = useMemo(() => {
+  const totalLegs = useMemo(() => {
     const courses = selectedEvent?.raceCourses?.[0]?.courses;
     const allControls = selectedEvent?.raceCourses?.[0]?.controls || [];
     if (!selectedCourseId || !courses) return 0;
@@ -366,14 +369,25 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
     setPlaybackCurrentTime(time);
   }, []);
 
-  // Handle playback completion - advance to next leg
+  // When auto-advancing with a route selected, keep a route selected on the next
+  // leg (first route) instead of letting the leg-change effect clear it.
+  const keepRouteOnAdvanceRef = useRef(false);
+
+  // Handle playback completion - advance to the next leg and keep playing.
   const handlePlaybackComplete = useCallback(() => {
-    // Stop animation when route playback completes
     // Use setTimeout to defer state update until after render completes
     setTimeout(() => {
-      setIsPlaying(false);
+      // Advance to the next leg and keep playing; stop at the last leg.
+      if (autoAdvance && selectedLeg !== null && selectedLeg < totalLegs - 1) {
+        // If a route was selected, select the first route on the next leg.
+        keepRouteOnAdvanceRef.current = selectedRoute !== null;
+        setSelectedLeg(selectedLeg + 1);
+        // isPlaying stays true so playback continues on the next leg.
+      } else {
+        setIsPlaying(false);
+      }
     }, 0);
-  }, []);
+  }, [autoAdvance, selectedLeg, selectedRoute, totalLegs]);
 
   // Update map scale when map changes
   useEffect(() => {
@@ -382,10 +396,16 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
     }
   }, [activeMap]);
 
-  // Reset selectedRoute when leg changes
+  // Reset selectedRoute when leg changes. When auto-advancing with a route
+  // selected, keep the first route on the next leg instead of clearing it.
+  // Don't stop playing on leg change (for auto-advance).
   useEffect(() => {
-    setSelectedRoute(null);
-    // Don't stop playing on leg change (for auto-advance)
+    if (keepRouteOnAdvanceRef.current) {
+      keepRouteOnAdvanceRef.current = false;
+      setSelectedRoute(0);
+    } else {
+      setSelectedRoute(null);
+    }
   }, [selectedLeg]);
 
   // Reset analysis routes when course changes
@@ -406,6 +426,8 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) {
         return;
       }
+      // Don't hijack Ctrl+Space (IME switch) or Alt+Space (Windows system menu).
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code === "Space") {
         // Allow spacebar to toggle play when either a route or a leg is selected
         if (selectedRoute !== null || selectedLeg !== null) {
@@ -436,6 +458,7 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
             backgroundOpacity={isMapMuted ? 0.5 : 1}
             showEdges={showEdges}
             showDecisionPoints={showDecisionPoints}
+            showBranchingPoints={showBranchingPoints}
             isPlaying={isPlaying}
             // Pass the playbackSpeed prop
             playbackSpeed={playbackSpeed}
@@ -490,6 +513,8 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
         onShowEdgesChange={setShowEdges}
         showDecisionPoints={showDecisionPoints}
         onShowDecisionPointsChange={setShowDecisionPoints}
+        showBranchingPoints={showBranchingPoints}
+        onShowBranchingPointsChange={setShowBranchingPoints}
         mapScale={mapScale}
         isPlaying={isPlaying}
         playbackSpeed={playbackSpeed}
@@ -497,6 +522,8 @@ export default function RouteAnalysis({ loadedExampleFile }: { loadedExampleFile
         playReset={playReset}
         followPlayback={followPlayback}
         onFollowPlaybackChange={setFollowPlayback}
+        autoAdvance={autoAdvance}
+        onAutoAdvanceChange={setAutoAdvance}
         onTogglePlay={() => setIsPlaying((p) => !p)}
         onStopPlay={() => {
           setIsPlaying(false);

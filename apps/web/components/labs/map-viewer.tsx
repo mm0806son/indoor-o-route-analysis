@@ -6,19 +6,26 @@ import { useAppData } from "@indoor-o-route-analysis/ui";
 import type { MapData } from "@indoor-o-route-analysis/core";
 import type { Control } from "@indoor-o-route-analysis/core";
 import type { Node, Edge } from "@indoor-o-route-analysis/core";
-import { 
-  CONTROL_RADIUS, 
-  CONTROL_STROKE_WIDTH, 
+import {
+  CONTROL_RADIUS,
+  CONTROL_STROKE_WIDTH,
   COURSE_COLOR,
   LABS_ROUTE_COLOR,
+  HUMAN_OVERLAY_TRACKING_COLOR,
+  HUMAN_OVERLAY_BACKTRACKING_COLOR,
 } from "@indoor-o-route-analysis/core";
-import { ControlRenderer } from "@indoor-o-route-analysis/ui";
+import { ControlRenderer, buildRoutePathSegments } from "@indoor-o-route-analysis/ui";
+import { GraphOverlay, HumanRouteOverlay, ClusteredGraphOverlay } from "@/components/shared";
+import type { HumanRouteOverlayState } from "./human-thinking/properties-panel";
+import type { ClusteredGraphState } from "./clustered-graph/properties-panel";
 
 interface LabsMapViewerProps {
   map?: MapData;
   pdfUrl: string | null;
   scale: number;
-  displayedRoute?: { path: string[], distance?: number } | null;
+  displayedRoute?: { path: string[], distance?: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null;
+  humanRouteOverlay?: HumanRouteOverlayState | null;
+  clusteredGraph?: ClusteredGraphState | null;
   showNodes?: boolean;
   showEdges?: boolean;
   backgroundMode?: "normal" | "muted" | "hidden";
@@ -28,6 +35,8 @@ interface LabsMapViewerProps {
 const MapOverlay = ({
   mapState,
   displayedRoute,
+  humanRouteOverlay,
+  clusteredGraph,
   controller,
   nodes,
   controls,
@@ -37,7 +46,9 @@ const MapOverlay = ({
   showEdges,
 }: {
   mapState: MapViewerState,
-  displayedRoute?: { path: string[], distance?: number } | null,
+  displayedRoute?: { path: string[], distance?: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null,
+  humanRouteOverlay?: HumanRouteOverlayState | null,
+  clusteredGraph?: ClusteredGraphState | null,
   controller: MapViewerController | null,
   nodes: Node[],
   controls: Control[],
@@ -166,62 +177,51 @@ const MapOverlay = ({
       const startCircle = ControlRenderer.renderControl({
         control: startCtrl,
         courseControls: [],
-        courseControlCodes: [],
+        // Marking the control as "in course" (matching its own id) suppresses
+        // ControlRenderer's raw-code fallback text, which would otherwise be
+        // drawn on top of the label below at the same position.
+        courseControlCodes: [startCtrl.id],
         strokeColor: mainColor,
         showLabel: true,
-        label: startCtrl.id,
+        label: displayedRoute.fromLabel ?? startCtrl.id,
         showControlPoint: map?.showControlPoints,
       });
       const endCircle = ControlRenderer.renderControl({
         control: endCtrl,
         courseControls: [],
-        courseControlCodes: [],
+        courseControlCodes: [endCtrl.id],
         strokeColor: mainColor,
         showLabel: true,
-        label: endCtrl.id,
+        label: displayedRoute.toLabel ?? endCtrl.id,
         showControlPoint: map?.showControlPoints,
       });
 
-      // Route Polyline (handling ignoreLength)
-      const segments: { points: {x:number, y:number}[] }[] = [];
-      let currentSeg: {x:number, y:number}[] = [];
+      // Route Polyline (handling ignoreLength/map-segment transitions via the
+      // shared segment-splitting helper; the transition segment itself is
+      // dropped, leaving the same before/after segments as a manual split).
+      const segments = buildRoutePathSegments(
+        displayedRoute.path,
+        getPixelPos,
+        (fromId, toId) => !!edges.find(e =>
+          (e.from === fromId && e.to === toId) ||
+          (!e.oneWay && e.from === toId && e.to === fromId)
+        )?.ignoreLength,
+      ).filter(seg => !seg.isMapSegmentTransition);
 
-      for(let i=0; i<displayedRoute.path.length; i++) {
-         const nodeId = displayedRoute.path[i];
-         const p = getPixelPos(nodeId); 
-         if(!p) continue;
-
-         if(i===0) {
-             currentSeg.push(p);
-             continue;
-         }
-
-         const prevNodeId = displayedRoute.path[i-1];
-         // Find edge to check ignoreLength
-         const edge = edges.find(e => 
-             (e.from === prevNodeId && e.to === nodeId) || 
-             (!e.oneWay && e.from === nodeId && e.to === prevNodeId)
-         );
-         
-         const isIgnore = edge?.ignoreLength; 
-
-         if(isIgnore) {
-             // Finish current segment
-             if(currentSeg.length > 0) segments.push({points: currentSeg});
-             // Start new segment from THIS node (teleport destination)
-             currentSeg = [p];
-         } else {
-             // Continue segment
-             currentSeg.push(p);
-         }
-      }
-      if(currentSeg.length > 0) segments.push({points: currentSeg});
+      // Human Thinking legs carry forwardSegmentCount: segments before it are
+      // the tracking side's own corridor stretches (colored blue, matching
+      // the exploration-time polylines), the rest are backtracking's (amber).
+      // Other labs' single-color route is unaffected (forwardSegmentCount undefined).
+      const forwardSegmentCount = displayedRoute.forwardSegmentCount;
 
       const routePolylines = (
         <g>
           {segments.map((seg, i) => {
               if (seg.points.length < 2) return null;
               const pts = seg.points.map(p => `${p.x},${p.y}`).join(" ");
+              const segColor = forwardSegmentCount === undefined
+                ? routeColor
+                : (i < forwardSegmentCount ? HUMAN_OVERLAY_TRACKING_COLOR : HUMAN_OVERLAY_BACKTRACKING_COLOR);
               return (
                  <g key={i}>
                     {/* White halo for visibility */}
@@ -235,10 +235,10 @@ const MapOverlay = ({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                     />
-                    {/* Main dashed green line */}
+                    {/* Main dashed line */}
                     <polyline
                         points={pts}
-                        stroke={routeColor}
+                        stroke={segColor}
                         strokeWidth={3}
                         strokeOpacity={0.8}
                         fill="none"
@@ -255,50 +255,20 @@ const MapOverlay = ({
       return { routePolylines, startCircle, endCircle, legLine };
   }, [displayedRoute, nodes, controls, edges, map, mapState.pixelsPerMM]);
 
-  // Graph overlay (nodes and edges)
-  const graphOverlay = useMemo(() => {
-    if (!showNodes && !showEdges) return null;
-    if (!mapState.pixelsPerMM) return null;
-
-    const visibleEdges = edges.filter(e => !e.ignoreLength);
-
-    const getPos = (item: Node | Control | undefined) => {
-      if (!item) return null;
-      if ("x" in item && "y" in item) return eventPosToMultiPagePixels({ x: item.x, y: item.y }, map, mapState.pixelsPerMM);
-      if (item.mapPosition) return eventPosToMultiPagePixels({ x: item.mapPosition.x, y: item.mapPosition.y }, map, mapState.pixelsPerMM);
-      return null;
-    };
-
-    return (
-      <g>
-        {showEdges && visibleEdges.map((edge, i) => {
-          const p1 = getPos(nodes.find(n => n.id === edge.from) || controls.find(c => c.id === edge.from));
-          const p2 = getPos(nodes.find(n => n.id === edge.to) || controls.find(c => c.id === edge.to));
-          if (!p1 || !p2) return null;
-          return (
-            <line
-              key={`edge-${i}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-              stroke="rgba(0,0,0,0.2)" strokeWidth={1}
-            />
-          );
-        })}
-        {showNodes && nodes.map(node => {
-          const p = getPos(node);
-          if (!p) return null;
-          return (
-            <circle key={`node-${node.id}`} cx={p.x} cy={p.y} r={2} fill="rgba(0,0,255,0.3)" />
-          );
-        })}
-        {showNodes && controls.map(control => {
-          const p = getPos(control);
-          if (!p) return null;
-          return (
-            <circle key={`ctrl-${control.id}`} cx={p.x} cy={p.y} r={CONTROL_RADIUS * mapState.pixelsPerMM} fill="none" stroke="rgba(128,0,128,0.5)" strokeWidth={CONTROL_STROKE_WIDTH * mapState.pixelsPerMM} />
-          );
-        })}
-      </g>
-    );
-  }, [showEdges, showNodes, nodes, edges, controls, map, mapState.pixelsPerMM]);
+  // Convert graph nodes/controls to pixel space for GraphOverlay and the
+  // Human Thinking / Clustered Graph overlays (the latter two need node
+  // positions regardless of the showNodes/showEdges debug toggles).
+  const { nodesPx, controlsPx } = useMemo(() => {
+    if ((!showNodes && !showEdges && !humanRouteOverlay && !clusteredGraph) || !mapState.pixelsPerMM) return { nodesPx: [], controlsPx: [] };
+    const toPos = (mm: { x: number; y: number }) => eventPosToMultiPagePixels(mm, map, mapState.pixelsPerMM);
+    const nodesPx = nodes
+      .filter((n): n is Node & { x: number; y: number } => "x" in n && "y" in n)
+      .map(n => ({ id: n.id, ...toPos({ x: n.x, y: n.y }) }));
+    const controlsPx = controls
+      .filter(c => c.mapPosition)
+      .map(c => ({ id: c.id, ...toPos({ x: c.mapPosition!.x, y: c.mapPosition!.y }) }));
+    return { nodesPx, controlsPx };
+  }, [showEdges, showNodes, humanRouteOverlay, clusteredGraph, nodes, controls, map, mapState.pixelsPerMM]);
 
   return (
     <svg
@@ -306,7 +276,21 @@ const MapOverlay = ({
         height={mapState.pdfDimensions.height}
         style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
     >
-        {graphOverlay}
+        <GraphOverlay edges={edges} nodes={nodesPx} controls={controlsPx} showEdges={showEdges} showNodes={showNodes} />
+        {humanRouteOverlay && (
+          // Controls can themselves be graph nodes (and thus clusters/origins/
+          // candidate destinations) in this model, not just vertices - see
+          // buildControlNodeMap's identity mapping in RouteAnalyzer.
+          <HumanRouteOverlay overlay={humanRouteOverlay.overlay} clusterOf={humanRouteOverlay.clusterOf} nodes={[...nodesPx, ...controlsPx]} />
+        )}
+        {clusteredGraph && (
+          <ClusteredGraphOverlay
+            edges={edges}
+            nodes={[...nodesPx, ...controlsPx]}
+            clusterOf={clusteredGraph.clusterOf}
+            clusterColors={clusteredGraph.clusterColors}
+          />
+        )}
         {legLine}
         {routePolylines}
         {startCircle}
@@ -320,6 +304,8 @@ export default function LabsMapViewer({
   pdfUrl,
   scale: _scale,
   displayedRoute,
+  humanRouteOverlay,
+  clusteredGraph,
   showNodes,
   showEdges,
   backgroundMode = "normal",
@@ -343,6 +329,8 @@ export default function LabsMapViewer({
         <MapOverlay
           mapState={mapState}
           displayedRoute={displayedRoute}
+          humanRouteOverlay={humanRouteOverlay}
+          clusteredGraph={clusteredGraph}
           controller={controller}
           nodes={nodes}
           controls={controls}

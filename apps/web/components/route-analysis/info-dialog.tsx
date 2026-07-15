@@ -1,7 +1,6 @@
 "use client"
 
-import { X, Box, Maximize2, Map, EyeOff, Info, Menu, Play, Pause, Square, Target, Layers, ArrowUpDown, Repeat, BarChart3, Brain } from "lucide-react";
-import { TrendingUpDown } from "lucide-react";
+import { X, Box, Maximize2, Map as MapIcon, EyeOff, Info, Menu, Play, Pause, Square, Target, Layers, ArrowUpDown, Repeat, BarChart3, Brain, Split, Tractor } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 
 interface RouteAnalysisInfoDialogProps {
@@ -54,8 +53,9 @@ export default function RouteAnalysisInfoDialog({
                   </svg>
                   <strong>Show/hide edges</strong> &mdash; Toggle visibility of graph edges with length on the map. Edges with &ldquo;ignore length&rdquo; (e.g. stairs) are excluded.
                 </li>
-                <li><Map className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
-                <li><Brain className={iconClass} /><strong>Decision points</strong> &mdash; Toggle visibility of decision point markers on the selected route. A decision point is a node where more than two edges meet, indicating a junction where the runner must choose a direction. Only available when a single route is selected.</li>
+                <li><MapIcon className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
+                <li><Split className={iconClass} /><strong>Branching points</strong> &mdash; Toggle visibility of branching point markers on the selected route. A branching point is any node where the runner has more than one outgoing edge (excluding the way back), regardless of whether the alternatives are significant. Only available when a single route is selected.</li>
+                <li><Brain className={iconClass} /><strong>Decision points</strong> &mdash; Toggle visibility of decision point markers on the selected route. A decision point is a node where the runner faces a meaningful route choice: dead-end branches shorter than 50 m and trivial loop-backs are excluded. Decision point markers are drawn on top of branching point markers. Only available when a single route is selected.</li>
                 <li><Info className={iconClass} /><strong>Info</strong> &mdash; Opens this guide dialog.</li>
                 <li><Menu className={iconClass} /><strong>Menu</strong> &mdash; Export options:
                   <ul className="list-disc list-inside ml-4 space-y-0.5">
@@ -83,7 +83,13 @@ export default function RouteAnalysisInfoDialog({
             <div>
               <p className="font-medium text-foreground mb-1">Analysis Options</p>
               <ul className="space-y-1.5 ml-2">
-                <li><TrendingUpDown className={iconClass} /><strong>Show all routes</strong> &mdash; Include all route variations (including minor differences). When off, only distinctly different routes are shown.</li>
+                <li>
+                  <Tractor className={iconClass} /><strong>Show all routes</strong> &mdash; Controls how alternative routes are found and filtered for each leg.
+                  <ul className="list-disc list-inside ml-4 mt-1 space-y-0.5">
+                    <li><strong>Off (default):</strong> Uses a heuristic search limited to <em>k</em> candidate routes. Routes that differ only in minor surface-level details (same stair sequence) are deduplicated, so each listed route represents a genuinely distinct path through the building.</li>
+                    <li><strong>On:</strong> Runs an exhaustive search that finds all reachable paths up to a hard cap. No deduplication is applied, so routes that share the same overall structure but differ in small local detours are all shown. This is useful for discovering edge-case paths but may produce many near-identical routes and is slower to compute.</li>
+                  </ul>
+                </li>
                 <li><strong>Scoring model</strong> &mdash; Choose which difficulty scoring model to use for the analysis.</li>
               </ul>
             </div>
@@ -91,7 +97,7 @@ export default function RouteAnalysisInfoDialog({
             <div>
               <p className="font-medium text-foreground mb-1">Route Information Icons</p>
               <ul className="space-y-1.5 ml-2">
-                <li><Brain className={iconClass} /><strong>Decision points</strong> &mdash; Number of intersections where multiple paths are available.</li>
+                <li><Brain className={iconClass} /><strong>Decision points</strong> &mdash; Number of meaningful junctions where the runner must choose a direction. Dead-end branches shorter than 50 m are excluded.</li>
                 <li><ArrowUpDown className={iconClass} /><strong>Stairs</strong> &mdash; Number of stair segments along the route.</li>
                 <li><Repeat className={iconClass} /><strong>Repetition</strong> &mdash; Ratio of how much of the route overlaps with previously visited segments.</li>
               </ul>

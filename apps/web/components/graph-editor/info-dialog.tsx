@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Map, EyeOff, MoveHorizontal, Triangle, AlertTriangle, Info, Menu, FileUp, FileDown, RefreshCw, Trash2, Crosshair, Route } from "lucide-react";
+import { X, Map as MapIcon, EyeOff, MoveHorizontal, Triangle, AlertTriangle, Info, Menu, FileUp, FileDown, RefreshCw, Trash2, Crosshair, Route } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 
 interface GraphEditorInfoDialogProps {
@@ -45,7 +45,7 @@ export default function GraphEditorInfoDialog({
             <div>
               <p className="font-medium text-foreground mb-1">Toolbar Buttons</p>
               <ul className="space-y-1.5 ml-2">
-                <li><Map className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
+                <li><MapIcon className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
                 <li><MoveHorizontal className={iconClass} /><strong>Normal edges</strong> &mdash; Show or hide the normal graph edges on the map.</li>
                 <li><Triangle className={iconClass} /><strong>Ignore-length edges</strong> &mdash; Show or hide edges marked as &quot;ignore length&quot; (stairs). Drawn with a dashed style.</li>
                 <li><AlertTriangle className={iconClass} /><strong>Verify graph</strong> &mdash; Check the graph for errors such as disconnected nodes, invalid edges, or missing connections.</li>

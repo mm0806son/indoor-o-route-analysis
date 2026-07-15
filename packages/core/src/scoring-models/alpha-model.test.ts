@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import { AlphaScoringModel } from './alpha-model';
 import { parseEventFromJSON } from '../io/json-io';
 import { RouteAnalyzer } from '../route-analyzer';
@@ -26,18 +29,11 @@ describe('AlphaScoringModel', () => {
 
   describe('calculateDifficulty', () => {
     describe('no branching points', () => {
-      it('should score zero for straight corridor', () => {
-        expect(model.calculateDifficulty(noDecisionPointContexts.singleEdge)).toBe(0);
-      });
-
-      it('should score zero for multi-leg corridor (no branches)', () => {
-        expect(model.calculateDifficulty(noDecisionPointContexts.twoLegs)).toBe(0);
-        expect(model.calculateDifficulty(noDecisionPointContexts.threeLegs)).toBe(0);
-      });
-
-      it('should score zero for one-way edge (no branching, no stairs)', () => {
-        expect(model.calculateDifficulty(noDecisionPointContexts.oneWay)).toBe(0);
-      });
+      for (const [name, context] of Object.entries(noDecisionPointContexts)) {
+        it(`should score 0 for ${name}`, () => {
+          expect(model.calculateDifficulty(context)).toBe(0);
+        });
+      }
     });
 
     describe('one-route graphs', () => {
@@ -81,12 +77,13 @@ describe('AlphaScoringModel', () => {
     });
 
     describe('edge direction', () => {
-      it('should treat one-way edges same as bidirectional for branching', () => {
+      it('should count one-way outgoing edges as branching but not one-way incoming', () => {
         const bidir = model.calculateDifficulty(edgeDirectionContexts.bidirectionalFalseArc);
         const oneWay = model.calculateDifficulty(edgeDirectionContexts.oneWayNotReversible);
-        // Branching points ignore edge direction — both nodes have 2 connected edges
-        expect(bidir).toBe(oneWay);
+        // The bidirectional arc n3↔n1 gives n1 a second outgoing choice → branching.
+        // The one-way arc n3→n1 points INTO n1 and cannot be reversed → not branching.
         expect(bidir).toBeGreaterThan(0);
+        expect(oneWay).toBe(0);
       });
 
       it('should score zero for one-way corridor (no branching, no stairs)', () => {
@@ -160,8 +157,8 @@ describe('AlphaScoringModel', () => {
   });
 
   describe('reference course normalization', () => {
-    it('should score 100 for leg 15→16 on Bana 1 (Stockholm Indoor Cup 2023 E1)', () => {
-      const filePath = join(process.cwd(), 'public/examples/2023-02-04-Stockholm-Indoor-Cup-E1.json');
+    it('should score 100 for the shortest route of leg 3→4 on Bana 1 (Stockholm Indoor Cup 2023 E1)', () => {
+      const filePath = join(__dirname, '../../../../apps/web/public/examples/2023-02-04-Stockholm-Indoor-Cup-E1.json');
       const event = parseEventFromJSON(readFileSync(filePath, 'utf-8'));
       const raceCourse = event.raceCourses![0];
       const course = raceCourse.courses![0];
@@ -178,14 +175,19 @@ describe('AlphaScoringModel', () => {
         raceCourse.polygons ?? [],
       );
 
-      // Leg 15→16 corresponds to controls 45→46
-      const fromControl = controls.find((c: any) => c.id === '45');
-      const toControl = controls.find((c: any) => c.id === '46');
+      // Leg 3→4 corresponds to controls 33→34
+      const fromControl = controls.find((c: any) => c.id === '33');
+      const toControl = controls.find((c: any) => c.id === '34');
       expect(fromControl).toBeDefined();
       expect(toControl).toBeDefined();
 
-      const difficulty = analyzer.calculateLegDifficultyBetweenControls(fromControl!, toControl!);
-      expect(difficulty).toBe(100);
+      // Normalization is based on the shortest route (the one shown in the UI),
+      // not the lowest-difficulty path.
+      const routes = analyzer.findAlternativePathsBetweenControls(fromControl!.id, toControl!.id);
+      routes.sort((a, b) => a.distance - b.distance);
+      const shortest = routes[0];
+      expect(shortest).toBeDefined();
+      expect(shortest.difficulty).toBeCloseTo(100, 6);
     });
   });
 });

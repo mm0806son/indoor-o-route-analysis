@@ -1,6 +1,6 @@
 {
   "id": "c4f2aeb8-e3e0-42cd-9b8e-15e3284a30b4",
-  "name": "Stockholm Indoor Cup 2025 Etapp 2",
+  "name": "Stockholm Indoor Cup 2025 - Etapp 2",
   "startTime": {
     "date": "2025-02-02"
   },
@@ -9,7 +9,7 @@
       "courses": [
         {
           "id": "754c43cd-37d4-4106-bbb8-d398c5a3bdcd",
-          "name": "Herrar",
+          "name": "Bana 1",
           "mapId": "0b9d8467-2610-45a0-b4d6-67c74d0a0beb",
           "controls": [
             {
@@ -106,7 +106,7 @@
               "controlId": "60"
             }
           ],
-          "numberOfCompetitors": 10,
+          "numberOfCompetitors": 231,
           "targetDifficulty": "black"
         }
       ],
@@ -5736,10 +5736,18 @@
           "elevation": 15
         }
       ],
-      "customRoutes": []
+      "customRoutes": [],
+      "classAssignments": [
+        {
+          "className": "Herrar",
+          "courseName": "Bana 1",
+          "numberOfCompetitors": 231
+        }
+      ]
     }
   ],
   "country": "sweden",
   "eventUrl": "https://eventor.orientering.se/Events/Show/51649",
-  "eventImageUrl": "https://grundskola.stockholm/optimized/serviceunitspage/filer/hitta/bd53ba9b-f39c-4a08-af3e-097d56573863.jpg?format=webp"
+  "eventImageUrl": "https://grundskola.stockholm/optimized/serviceunitspage/filer/hitta/bd53ba9b-f39c-4a08-af3e-097d56573863.jpg?format=webp",
+  "mapDownloadUrl": "https://drive.google.com/drive/folders/1tjOeIE6JRpV-9Qwku2t6CJjIbWWcVxyZ"
 }

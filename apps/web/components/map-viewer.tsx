@@ -3,9 +3,17 @@
 import type React from "react"
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { getEventTransform, getPageIndexForEventPos, type MapData } from "@indoor-o-route-analysis/core";
+import { getPageIndexForEventPos } from "@indoor-o-route-analysis/core";
 
-export { getPageIndexForEventPos };
+// Coordinate transforms live in @indoor-o-route-analysis/core (map-coordinates.ts);
+// re-exported here so existing imports from this component keep working.
+export {
+  getPageIndexForEventPos,
+  mapToPixels,
+  mapToEvent,
+  multiPagePixelsToEvent,
+  eventPosToMultiPagePixels,
+} from "@indoor-o-route-analysis/core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs-dist is untyped dynamic import
 let pdfjsLib: any = null;
@@ -57,126 +65,6 @@ export interface MapViewerController {
   setZoom: (newZoom: number) => void;
   getCanvas: () => HTMLCanvasElement | null;
   frameItem: (target: { x: number; y: number }, targetZoom?: number) => void;
-}
-
-export function mapToPixels(
-  p: { x: number; y: number },
-  transform: { toMap: (p: { x: number; y: number }) => { x: number; y: number } },
-  pixelsPerMM: number,
-) {
-  const pdfMM = transform.toMap(p);
-  return { x: pdfMM.x * pixelsPerMM, y: pdfMM.y * pixelsPerMM };
-}
-
-export function mapToEvent(
-  p: { x: number; y: number },
-  transform: { toEvent: (p: { x: number; y: number }) => { x: number; y: number } },
-  pixelsPerMM: number,
-) {
-  const pdfMM = { x: p.x / pixelsPerMM, y: p.y / pixelsPerMM };
-  return transform.toEvent(pdfMM);
-}
-
-
-/**
- * Converts SVG pixel coordinates to event-space coordinates, correctly
- * handling multi-page horizontal/vertical layouts with manual per-page transforms.
- *
- * This is the inverse of eventPosToMultiPagePixels:
- *  1. Determines page index from the pixel offset (horizontal: pixelX / pageWidthPx,
- *     vertical: pixelY / pageHeightPx).
- *  2. Subtracts the layout offset to get page-local pixel coords.
- *  3. Applies that page's toEvent transform.
- *
- * Falls back to the single-transform path for automatic mode or non-multi-page layouts.
- */
-export function multiPagePixelsToEvent(
-  pixelPos: { x: number; y: number },
-  mapData: MapData | undefined,
-  pixelsPerMM: number,
-): { x: number; y: number } {
-  if (
-    !mapData ||
-    mapData.pageTransformMode !== "manual" ||
-    (mapData.layout !== "horizontal" && mapData.layout !== "vertical")
-  ) {
-    const transform = getEventTransform(mapData);
-    return mapToEvent(pixelPos, transform, pixelsPerMM);
-  }
-
-  const pageCount = mapData.pageCount || 1;
-  const pageW = mapData.image.width || 0;
-  const pageH = mapData.image.height || 0;
-
-  let pageIndex = 0;
-  let pageLocalPx = { ...pixelPos };
-
-  if (mapData.layout === "horizontal") {
-    pageIndex = Math.min(Math.floor(pixelPos.x / (pageW * pixelsPerMM)), pageCount - 1);
-    pageLocalPx = { x: pixelPos.x - pageIndex * pageW * pixelsPerMM, y: pixelPos.y };
-  } else {
-    pageIndex = Math.min(Math.floor(pixelPos.y / (pageH * pixelsPerMM)), pageCount - 1);
-    pageLocalPx = { x: pixelPos.x, y: pixelPos.y - pageIndex * pageH * pixelsPerMM };
-  }
-
-  const pageTransform = getEventTransform(mapData, pageIndex);
-  return mapToEvent(pageLocalPx, pageTransform, pixelsPerMM);
-}
-
-/**
- * Converts an event-coordinate position to SVG pixel coordinates, correctly
- * handling multi-page horizontal/vertical layouts with manual per-page transforms.
- *
- * For each control it:
- *  1. Finds which page the control belongs to (by checking which page's event
- *     bounding box contains the position).
- *  2. Applies that page's transform to get page-local pixel coords.
- *  3. Adds the layout offset (horizontal: +pageIndex * pageWidthPx,
- *     vertical: +pageIndex * pageHeightPx).
- *
- * Falls back to the single-transform path for automatic mode or non-multi-page layouts.
- */
-export function eventPosToMultiPagePixels(
-  eventPos: { x: number; y: number },
-  mapData: MapData | undefined,
-  pixelsPerMM: number,
-): { x: number; y: number } {
-  if (
-    !mapData ||
-    mapData.pageTransformMode !== "manual" ||
-    (mapData.layout !== "horizontal" && mapData.layout !== "vertical")
-  ) {
-    const transform = getEventTransform(mapData);
-    return mapToPixels(eventPos, transform, pixelsPerMM);
-  }
-
-  const pageCount = mapData.pageCount || 1;
-  const pageW = mapData.image.width || 0;
-  const pageH = mapData.image.height || 0;
-
-  // Find which page this event position belongs to
-  let pageIndex = 0;
-  for (let i = 0; i < pageCount; i++) {
-    const pageTx = mapData.pageTransforms?.[i];
-    if (!pageTx) continue;
-    const minX = Math.min(pageTx.topLeft.x, pageTx.bottomRight.x);
-    const maxX = Math.max(pageTx.topLeft.x, pageTx.bottomRight.x);
-    const minY = Math.min(pageTx.topLeft.y, pageTx.bottomRight.y);
-    const maxY = Math.max(pageTx.topLeft.y, pageTx.bottomRight.y);
-    if (eventPos.x >= minX && eventPos.x <= maxX && eventPos.y >= minY && eventPos.y <= maxY) {
-      pageIndex = i;
-      break;
-    }
-  }
-
-  const pageTransform = getEventTransform(mapData, pageIndex);
-  const pageLocalPx = mapToPixels(eventPos, pageTransform, pixelsPerMM);
-
-  if (mapData.layout === "horizontal") {
-    return { x: pageLocalPx.x + pageIndex * pageW * pixelsPerMM, y: pageLocalPx.y };
-  } else {
-    return { x: pageLocalPx.x, y: pageLocalPx.y + pageIndex * pageH * pixelsPerMM };
-  }
 }
 
 export default function MapViewer({
@@ -425,20 +313,6 @@ export default function MapViewer({
             // Need to know dimensions:
             // mult-page: totalWidth, maxHeight
             // single-page: viewport.width, viewport.height
-            // We set pdfDimensions state, but access it from local vars here to be safe
-
-            let _w, _h;
-            if ((mapLayout === "horizontal" || mapLayout === "vertical") && numPages > 1) {
-              // Recalculate or store locally above?
-              // We have pdfDimensions set in state but state update is async/batched.
-              // Let's re-calculate logic briefly or use variables.
-              // We need to move variables to outer scope of if/else or use what we have.
-              // For multi-page, we calculated totalWidth, maxHeight above.
-              // But those vars are scoped to 'if'.
-              // Refactor: move w/h calc out?
-              // Or just access via state in next render?
-              // Better to do it here to avoid flash.
-            }
           }
         }
       } catch (error) {
@@ -517,7 +391,7 @@ export default function MapViewer({
           const elapsed = now - startTime;
           const t = Math.min(elapsed / duration, 1);
           // Ease-out cubic for a quick, smooth arrival
-          const eased = 1 - Math.pow(1 - t, 3);
+          const eased = 1 - (1 - t) ** 3;
 
           updatePan({
             x: startPan.x + (endPan.x - startPan.x) * eased,
@@ -584,7 +458,7 @@ export default function MapViewer({
         const step = (now: number) => {
           const elapsed = now - startTime;
           const t = Math.min(elapsed / duration, 1);
-          const eased = 1 - Math.pow(1 - t, 3);
+          const eased = 1 - (1 - t) ** 3;
 
           updatePan({
             x: startPan.x + (endPan.x - startPan.x) * eased,
@@ -876,6 +750,8 @@ export default function MapViewer({
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         return;
       }
+      // Don't hijack the browser's own zoom shortcut (Ctrl/Cmd +/-).
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (e.key === "+" || e.key === "=") {
         e.preventDefault();

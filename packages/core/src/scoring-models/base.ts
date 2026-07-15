@@ -253,6 +253,47 @@ export function isBranchSignificant(
 }
 
 /**
+ * Analyze a route for branching points.
+ *
+ * A branching point is any node along the route where the number of outgoing
+ * edges (edges that can be traversed forward, excluding the way back to the
+ * previous node) is greater than 1 — i.e. the runner has at least two
+ * choices of where to go next.
+ *
+ * One-way constraints are respected: only traversable edges are counted.
+ * Dead-ends and short branches are NOT filtered out.
+ *
+ * This is the single source of truth used by the Alpha difficulty model and
+ * the branching-point map markers.
+ *
+ * @param context - Route context containing the graph and path
+ * @returns Branching point count and node IDs
+ */
+export function analyzeBranchingPoints(context: RouteContext): DecisionPointAnalysis {
+  const nodeIds: string[] = [];
+
+  for (let i = 0; i < context.path.length; i++) {
+    const nodeId = context.path[i];
+    const prevNodeId = i > 0 ? context.path[i - 1] : null;
+
+    // Count reachable next-nodes (one-way constraints respected, backtrack excluded)
+    const reachable = new Set<string>();
+    for (const e of getNodeEdges(context, nodeId)) {
+      const nextId = e.from === nodeId ? e.to : e.from;
+      if (nextId === prevNodeId) continue;           // exclude going back
+      if (e.from !== nodeId && e.oneWay) continue;   // can't traverse one-way in reverse
+      reachable.add(nextId);
+    }
+
+    if (reachable.size > 1) {
+      nodeIds.push(nodeId);
+    }
+  }
+
+  return { count: nodeIds.length, nodeIds };
+}
+
+/**
  * Analyze a route for decision points.
  *
  * Decision points are nodes along the path where more than 2 significant
@@ -262,9 +303,6 @@ export function isBranchSignificant(
  * - Dead-end edges that are not on the route path
  * - Short branches (< {@link MIN_BRANCH_DISTANCE_M}) that dead-end or
  *   quickly loop back to the analysed path
- *
- * This is the single source of truth for decision point calculation,
- * shared by both the {@link RouteAnalyzer} and scoring models.
  *
  * @param context - Route context containing the graph and path
  * @returns Decision point count and node IDs
@@ -371,6 +409,14 @@ export abstract class ScoringModel {
    * @param context - Contains event data (controls, nodes, edges), route path, and map scale
    */
   abstract calculateDifficulty(context: RouteContext): number;
+
+  /**
+   * Return a human-readable formula string showing how difficulty was calculated for a route.
+   * Returns undefined if the model doesn't support breakdown display.
+   */
+  getBreakdownFormula(_context: RouteContext): string | undefined {
+    return undefined;
+  }
 
   /**
    * Get difficulty category for a given difficulty score

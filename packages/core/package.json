@@ -2,8 +2,12 @@
   "name": "@indoor-o-route-analysis/core",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./3d": "./src/transformations.ts",
+    "./render": "./src/render.ts",
+    "./export": "./src/export.ts"
   },
   "scripts": {
     "test": "vitest",
@@ -11,19 +15,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
     "date-fns": "4.1.0",
     "jspdf": "^4.0.0",
     "mediabunny": "^1.29.1",
-    "tailwind-merge": "^3.3.1",
     "three": "^0.182.0",
     "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/three": "^0.182.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^27.4.0",
     "typescript": "^5",
-    "vitest": "^4.0.17"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.0"
   }
 }

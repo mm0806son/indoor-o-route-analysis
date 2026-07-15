@@ -1,0 +1,16 @@
+2023E2
+https://obasen.orientering.se/winsplits/online/en/default.asp?page=classes&databaseId=87316
+sic-2023-e2,2023,Herrar,221,28-29,100,-1:35:06
+
+2025E1
+https://obasen.orientering.se/winsplits/online/en/default.asp?page=table&databaseId=102616&categoryId=9
+sic-2025-e1,2025,Herrar,,16-17,45,-1:59 
+sic-2025-e1,2025,Herrar,,17-18,44,-0:16
+
+2024E1
+https://obasen.orientering.se/winsplits/online/en/default.asp?page=table&databaseId=94982&categoryId=9
+sic-2024-e1,2024,Herrar,61,29-F,,0:00
+sic-2024-e1,2024,Herrar,106,29-F,,0:00
+sic-2024-e1,2024,Herrar,112,29-F,,0:01
+
+sic-2026-e1,2026,Herrar,9,28-F,,0:00

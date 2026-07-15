@@ -8,16 +8,22 @@
     "dev": "turbo dev --filter=web",
     "test": "turbo test",
     "test:run": "turbo test:run",
+    "test:e2e": "turbo test:e2e",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "web": "turbo dev --filter=web",
     "mcp-server": "turbo dev --filter=mcp-server",
-    "batch-analysis": "pnpm --filter batch-analysis start",
-    "generate-training-data": "pnpm --filter generate-training-data start",
-    "route-cli": "pnpm --filter route-cli start --",
-    "convert": "pnpm --filter convert start"
+    "analyse-all": "pnpm --filter analyse-all-cli start",
+    "analyse-all-max-leg": "pnpm --filter analyse-all-cli start --max-leg",
+    "training": "pnpm --filter training-cli start",
+    "analyse": "pnpm --filter analyse-cli start",
+    "convert": "pnpm --filter convert-cli start",
+    "splits": "pnpm --filter splits-cli start",
+    "route-viz": "pnpm --filter route-viz-cli start",
+    "update-all": "pnpm analyse-all && pnpm splits && pnpm training"
   },
   "devDependencies": {
-    "turbo": "^2.8.17"
+    "@biomejs/biome": "^2.5.1",
+    "turbo": "^2.9.14"
   }
 }

@@ -2,8 +2,8 @@
 
 import React from "react";
 import { getDifficultyCategory } from "@indoor-o-route-analysis/core";
-import { ScoringModel } from "@indoor-o-route-analysis/core";
-import { cn } from "@indoor-o-route-analysis/core";
+import type { ScoringModel } from "@indoor-o-route-analysis/core";
+import { cn } from "@indoor-o-route-analysis/ui";
 
 interface DifficultyTagProps {
   difficulty: number;

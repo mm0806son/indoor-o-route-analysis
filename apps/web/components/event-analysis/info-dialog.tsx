@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Share2, CircleDot, Map, EyeOff, Info, Menu, Download, BarChart3 } from "lucide-react";
+import { X, Share2, CircleDot, Map as MapIcon, EyeOff, Info, Menu, Download, BarChart3 } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 
 interface EventAnalysisInfoDialogProps {
@@ -51,7 +51,7 @@ export default function EventAnalysisInfoDialog({
               <ul className="space-y-1.5 ml-2">
                 <li><Share2 className={iconClass} /><strong>Edge traffic</strong> &mdash; Show or hide the edge traffic visualization on the map. Displays traffic intensity along each graph edge.</li>
                 <li><CircleDot className={iconClass} /><strong>Node traffic</strong> &mdash; Show or hide node traffic as colored circles. Disabled when using collision metric (which is edge-based only).</li>
-                <li><Map className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map. Dim the background to improve visibility of the analysis overlay.</li>
+                <li><MapIcon className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map. Dim the background to improve visibility of the analysis overlay.</li>
                 <li><Info className={iconClass} /><strong>Info</strong> &mdash; Opens this guide dialog.</li>
                 <li><Menu className={iconClass} /><strong>Menu</strong> &mdash; Export options:
                   <ul className="list-disc list-inside ml-4 space-y-0.5">

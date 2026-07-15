@@ -2,6 +2,7 @@ import { Input } from "@indoor-o-route-analysis/ui";
 import { Label } from "@indoor-o-route-analysis/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@indoor-o-route-analysis/ui";
 import { NO, SE } from 'country-flag-icons/react/3x2';
+import { safeHttpUrl } from "@/components/shared";
 // import type { EventData } from "@indoor-o-route-analysis/core"; // Unused
 
 interface EventPropertiesTabProps {
@@ -164,9 +165,9 @@ export function EventPropertiesTab({
               </>
             )}
             <div className="mt-2 flex flex-col gap-1 text-sm">
-              {eventUrlInput && (
+              {safeHttpUrl(eventUrlInput) && (
                 <a
-                  href={eventUrlInput}
+                  href={safeHttpUrl(eventUrlInput)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline block"
@@ -174,9 +175,9 @@ export function EventPropertiesTab({
                   {"Event"}
                 </a>
               )}
-              {mapDownloadUrlInput && (
+              {safeHttpUrl(mapDownloadUrlInput) && (
                 <a
-                  href={mapDownloadUrlInput}
+                  href={safeHttpUrl(mapDownloadUrlInput)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline block"

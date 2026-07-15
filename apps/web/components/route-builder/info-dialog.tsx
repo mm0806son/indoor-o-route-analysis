@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Box, Maximize2, Map, EyeOff, Network, Plus, Info, Menu, Copy, Trash2, ArrowLeft, Play, Pause, Square, Target, Layers, PenTool } from "lucide-react";
+import { X, Box, Maximize2, Map as MapIcon, EyeOff, Network, Plus, Info, Menu, Copy, Trash2, ArrowLeft, Play, Pause, Square, Target, Layers, PenTool } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 
 interface RouteBuilderInfoDialogProps {
@@ -47,7 +47,7 @@ export default function RouteBuilderInfoDialog({
               <ul className="space-y-1.5 ml-2">
                 <li><Box className={iconClass} /><strong>3D / Map view</strong> &mdash; Switch between the 2D map view and the 3D model view.</li>
                 <li><Maximize2 className={iconClass} /><strong>Frame all</strong> &mdash; Reset the camera to frame all geometry (3D mode only).</li>
-                <li><Map className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
+                <li><MapIcon className={iconClass} /><EyeOff className={iconClass} /><strong>Map visibility</strong> &mdash; Cycle through: full map &rarr; dimmed map &rarr; hidden map.</li>
                 <li><Network className={iconClass} /><strong>Show graph</strong> &mdash; Show or hide the underlying graph nodes and edges on the map.</li>
                 <li><Plus className={iconClass} /><strong>New route</strong> &mdash; Create a new custom route for a selected course.</li>
                 <li><Info className={iconClass} /><strong>Info</strong> &mdash; Opens this guide dialog.</li>

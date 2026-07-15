@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
-import MapViewer, { MapViewerState, MapViewerController, eventPosToMultiPagePixels, multiPagePixelsToEvent } from "@/components/map-viewer";
+import MapViewer, { type MapViewerState, type MapViewerController, eventPosToMultiPagePixels, multiPagePixelsToEvent } from "@/components/map-viewer";
 import { useAppData } from "@indoor-o-route-analysis/ui";
 import type { Node, Edge, Control } from "@indoor-o-route-analysis/core";
 import type { MapData } from "@indoor-o-route-analysis/core";
@@ -37,6 +37,7 @@ interface GraphEditorMapViewerProps {
   showNormalEdges: boolean;
   showIgnoreEdges: boolean;
   highlightDeadEnds: boolean;
+  showEdgeWeights: boolean;
 }
 
 export interface GraphEditorMapViewerHandle {
@@ -60,6 +61,7 @@ const GraphEditorMapViewer = forwardRef<GraphEditorMapViewerHandle, GraphEditorM
       showNormalEdges,
       showIgnoreEdges,
       highlightDeadEnds,
+      showEdgeWeights,
     },
     ref,
   ) => {
@@ -318,10 +320,12 @@ const GraphEditorMapViewer = forwardRef<GraphEditorMapViewerHandle, GraphEditorM
 
         // 1. Overlap
         const allItems: { id: string; x: number; y: number; type: "node" | "control" }[] = [];
-        nodes.forEach((n) => allItems.push({ ...n, type: "node" }));
-        (selectedEvent?.raceCourses?.[0]?.controls ?? []).forEach((c) =>
-          allItems.push({ id: c.id, x: c.mapPosition.x, y: c.mapPosition.y, type: "control" }),
-        );
+        nodes.forEach((n) => {
+          allItems.push({ ...n, type: "node" });
+        });
+        (selectedEvent?.raceCourses?.[0]?.controls ?? []).forEach((c) => {
+          allItems.push({ id: c.id, x: c.mapPosition.x, y: c.mapPosition.y, type: "control" });
+        });
 
         for (let i = 0; i < allItems.length; i++) {
           for (let j = i + 1; j < allItems.length; j++) {
@@ -561,6 +565,11 @@ const GraphEditorMapViewer = forwardRef<GraphEditorMapViewerHandle, GraphEditorM
           return;
         }
 
+        // Bare letter/number shortcuts below must not fire alongside a
+        // modifier - otherwise e.g. Ctrl+S (browser save) would also set
+        // the selected edge's label to "S".
+        const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+
         if (e.key === "Delete" || e.key === "Backspace") {
           if (selectedNodeId) {
             const updated = nodes.filter((node) => node.id !== selectedNodeId);
@@ -599,7 +608,7 @@ const GraphEditorMapViewer = forwardRef<GraphEditorMapViewerHandle, GraphEditorM
             setSelectedEdgeId(edgeKey(reversedEdge));
             if (onPropertiesChange) onPropertiesChange({ type: "edge", ...reversedEdge });
           }
-        } else if (selectedEdgeId && e.key === "1") {
+        } else if (selectedEdgeId && !hasModifier && e.key === "1") {
           // "1" key pressed with edge selected - toggle one-way
           const updatedEdges = edges.map((edge) =>
             edgeKey(edge) === selectedEdgeId ? { ...edge, oneWay: !edge.oneWay } : edge,
@@ -609,7 +618,7 @@ const GraphEditorMapViewer = forwardRef<GraphEditorMapViewerHandle, GraphEditorM
           if (onPropertiesChange && updatedEdge) {
             onPropertiesChange({ type: "edge", ...updatedEdge });
           }
-        } else if (selectedEdgeId && e.key.length === 1 && /^[a-zA-Z]$/.test(e.key)) {
+        } else if (selectedEdgeId && !hasModifier && e.key.length === 1 && /^[a-zA-Z]$/.test(e.key)) {
           // A-Z key pressed with edge selected - set label, reverseLabel, and ignoreLength
           const upperKey = e.key.toUpperCase();
           const lowerKey = e.key.toLowerCase();
@@ -1099,81 +1108,6 @@ const GraphEditorMapViewer = forwardRef<GraphEditorMapViewerHandle, GraphEditorM
           onMouseMove={handleMouseMove(state)}
           onMouseUp={handleMouseUp(state)}
         >
-          <defs>
-            <filter id="orange-halo-node" x="-300%" y="-300%" width="700%" height="700%">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="10" result="blur1" />
-              <feFlood floodColor="#ff6600" floodOpacity="1" result="flood1">
-                <animate attributeName="floodOpacity" values="0.7;1;0.7" dur="1s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur1" operator="in" result="halo1" />
-              <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur2" />
-              <feFlood floodColor="#ff8800" floodOpacity="1" result="flood2">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur2" operator="in" result="halo2" />
-              <feMerge>
-                <feMergeNode in="halo1" />
-                <feMergeNode in="halo2" />
-                <feMergeNode in="halo1" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="orange-halo-edge" x="-300%" y="-300%" width="700%" height="700%">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="12" result="blur1" />
-              <feFlood floodColor="#ff6600" floodOpacity="1" result="flood1">
-                <animate attributeName="floodOpacity" values="0.7;1;0.7" dur="1s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur1" operator="in" result="halo1" />
-              <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur2" />
-              <feFlood floodColor="#ff8800" floodOpacity="1" result="flood2">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur2" operator="in" result="halo2" />
-              <feMerge>
-                <feMergeNode in="halo1" />
-                <feMergeNode in="halo2" />
-                <feMergeNode in="halo1" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="white-halo-node" x="-200%" y="-200%" width="500%" height="500%">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur1" />
-              <feFlood floodColor="white" floodOpacity="1" result="flood1">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur1" operator="in" result="halo1" />
-              <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur2" />
-              <feFlood floodColor="white" floodOpacity="1" result="flood2">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur2" operator="in" result="halo2" />
-              <feMerge>
-                <feMergeNode in="halo1" />
-                <feMergeNode in="halo2" />
-                <feMergeNode in="halo1" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="white-halo-edge" x="-200%" y="-200%" width="500%" height="500%">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur1" />
-              <feFlood floodColor="white" floodOpacity="1" result="flood1">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur1" operator="in" result="halo1" />
-              <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur2" />
-              <feFlood floodColor="white" floodOpacity="1" result="flood2">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur2" operator="in" result="halo2" />
-              <feMerge>
-                <feMergeNode in="halo1" />
-                <feMergeNode in="halo2" />
-                <feMergeNode in="halo1" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
           {/* White background rectangle when map is hidden */}
           {includeWhiteBackground && (
             <rect x={0} y={0} width={state.pdfDimensions.width} height={state.pdfDimensions.height} fill="white" />
@@ -1361,6 +1295,30 @@ const GraphEditorMapViewer = forwardRef<GraphEditorMapViewerHandle, GraphEditorM
                       })()}
                     </g>
                   )}
+                  {/* Edge weight label */}
+                  {showEdgeWeights && !edge.ignoreLength && (() => {
+                    const mapData = map ?? selectedEvent?.raceCourses?.[0]?.maps?.[0];
+                    const mapScale = mapData?.scale ?? 1;
+                    const realDistM = (dist / state.pixelsPerMM) * mapScale * 0.001;
+                    if (realDistM <= 0) return null;
+                    const weightText = realDistM.toFixed(1);
+                    return (
+                      <text
+                        x={labelX2}
+                        y={labelY2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize="9"
+                        fontFamily="Arial"
+                        fill={edgeColor}
+                        opacity={isSelected ? 1 : 0.6}
+                        transform={`rotate(${textAngleDeg} ${labelX2} ${labelY2})`}
+                        pointerEvents="none"
+                      >
+                        {weightText}
+                      </text>
+                    );
+                  })()}
                 </g>
               );
             })}

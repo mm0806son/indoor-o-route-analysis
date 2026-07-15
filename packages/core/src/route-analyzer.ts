@@ -1,18 +1,44 @@
 import type { Control } from "./models/control";
-import type { Node } from "./models/graph";
-import type { Edge } from "./models/graph";
-import { ScoringModel, ScoringModelRegistry, type DifficultyCategory, analyzeDecisionPoints } from "./scoring-models";
-
-import { Polygon } from "./models/polygon";
-import { findPolygonForPoint } from "./polygon-utils";
-import { findDeadEndEdgeIds, edgeKey } from "./utils/graph-utils";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-/** Conversion factor from millimeters to meters */
-const MM_TO_METERS = 0.001;
+import type { Edge, Node } from "./models/graph";
+import type { Polygon } from "./models/polygon";
+import type { RouteAnalyzerVisualizer } from "./route-analyzer-visualizer";
+import { type ScoringModel, ScoringModelRegistry } from "./scoring-models";
+import {
+  findDeadEndEdgeIds,
+  countOneWayEdgesInPath as countOneWayEdgesInPathUtil,
+  countIgnoreLengthEdgesInPath as countIgnoreLengthEdgesInPathUtil,
+  countAlternativeEdgesInPath as countAlternativeEdgesInPathUtil,
+} from "./utils/graph-utils";
+import { getCoordinates } from "./utils/geometry";
+import { findShortestPath, type PathResult } from "./route-search";
+import {
+  calculateEdgeDistanceMeters as calculateEdgeDistanceMetersUtil,
+  calculatePathDistance as calculatePathDistanceUtil,
+  calculatePathDistanceThroughGraph as calculatePathDistanceThroughGraphUtil,
+  calculateStraightLineDistance as calculateStraightLineDistanceUtil,
+  calculateRouteDistance as calculateRouteDistanceUtil,
+  calculateCourseLength as calculateCourseLengthUtil,
+  getPolygonForNodeOrControl as getPolygonForNodeOrControlUtil,
+  buildPathPolygons as buildPathPolygonsUtil,
+  calculatePathClimb as calculatePathClimbUtil,
+} from "./route-geometry";
+import {
+  getRouteLabels as getRouteLabelsUtil,
+  getRouteDescription as getRouteDescriptionUtil,
+  getStairSequence as getStairSequenceUtil,
+} from "./route-labels";
+import { analyzeRoute as analyzeRouteUtil } from "./route-decision-analysis";
+import { findAllAlternativePaths } from "./route-enumeration";
+import {
+  findHumanRoute,
+  type HumanRouteSide,
+  type HumanRouteCandidate,
+  type HumanRouteTraceStep,
+  type HumanRouteMeetingAttempt,
+  type HumanRouteMemorySnapshot,
+  type HumanRoutePendingBranch,
+  type HumanModelParams,
+} from "./human-route";
 
 // ============================================================================
 // Types and Interfaces
@@ -33,6 +59,8 @@ export interface RouteInfo {
   decisionPoints: number;
   /** Node IDs that are decision points along the route */
   decisionPointNodeIds: string[];
+  /** Node IDs that are branching points along the route (nodes with more connected edges than the path requires) */
+  branchingPointNodeIds: string[];
   /** Number of edges not taken at decision points */
   alternativeEdges: number;
   /** Number of one-way edges traversed */
@@ -45,10 +73,42 @@ export interface RouteInfo {
   labels: string[];
   /** Calculated difficulty score */
   difficulty: number;
+  /** Human-readable formula showing how difficulty was calculated */
+  difficultyFormula?: string;
   /** Total climb in meters */
   totalClimb?: number;
   /** Ratio of route length that repeats edges from shortest routes of previous legs (0-1) */
   repetitionRatio?: number;
+}
+
+// Re-export for consumers building on the trace (Labs "Human thinking" view).
+export type {
+  HumanRouteSide,
+  HumanRouteCandidate,
+  HumanRouteTraceStep,
+  HumanRouteMeetingAttempt,
+  HumanRouteMemorySnapshot,
+  HumanRoutePendingBranch,
+};
+
+/**
+ * The route a human would plan between two controls, plus how they got
+ * there — see human-route.ts and planning/07-human-route-simulation.md.
+ */
+export interface HumanRouteResult {
+  route: RouteInfo;
+  /** True if solved by the same-floor short-circuit (no stair search happened). */
+  sameFloor: boolean;
+  /** Labels committed by the tracking (forward) side, start -> meeting. */
+  forwardLabels: string[];
+  /** Labels committed by the backtracking (backward) side, meeting -> target. */
+  backwardLabels: string[];
+  /** Ordered "glances" — one per floor region considered, with candidate stairs in preference order. */
+  explorationTrace: HumanRouteTraceStep[];
+  /** Floor regions where the two search sides met, accepted or rejected and why. */
+  meetingAttempts: HumanRouteMeetingAttempt[];
+  /** nodeId -> same-floor cluster id, for overlay rendering. Absent when solved by the same-floor short-circuit. */
+  clusterOf?: Record<string, string>;
 }
 
 /**
@@ -65,61 +125,6 @@ export interface LegDifficulty {
   total: number;
 }
 
-/**
- * Result from Dijkstra's shortest path algorithm.
- */
-interface PathResult {
-  /** Total distance of the path in meters */
-  distance: number;
-  /** Ordered list of node IDs forming the shortest path */
-  path: string[];
-}
-
-// Re-export for backward compatibility
-export type { DifficultyCategory };
-
-// ============================================================================
-// Standalone Utility Functions
-// ============================================================================
-
-/**
- * Get the difficulty category (color/label) for a given difficulty score.
- * Uses the specified scoring model or falls back to the default model.
- *
- * @param difficulty - The numeric difficulty score
- * @param scoringModel - Optional scoring model to use for categorization
- * @returns The difficulty category with name, label, and colors
- */
-export function getDifficultyCategory(difficulty: number, scoringModel?: ScoringModel): DifficultyCategory {
-  const model = scoringModel ?? ScoringModelRegistry.getDefaultModel();
-  return model.getDifficultyCategory(difficulty);
-}
-
-/**
- * Calculate the overall course difficulty from individual leg difficulties.
- * Uses the specified scoring model or falls back to the default model.
- *
- * @param legs - Array of objects containing difficulty scores for each leg
- * @param scoringModel - Optional scoring model to use for calculation
- * @returns The overall course difficulty score
- */
-export function getCourseDifficulty(legs: Array<{ difficulty: number }>, scoringModel?: ScoringModel): number {
-  const model = scoringModel ?? ScoringModelRegistry.getDefaultModel();
-  return model.getCourseDifficulty(legs);
-}
-
-/**
- * Calculate the average course difficulty from individual leg difficulties.
- * Uses the specified scoring model or falls back to the default model.
- *
- * @param legs - Array of objects containing difficulty scores for each leg
- * @param scoringModel - Optional scoring model to use for calculation
- * @returns The average course difficulty score
- */
-export function getCourseAverageDifficulty(legs: Array<{ difficulty: number }>, scoringModel?: ScoringModel): number {
-  const model = scoringModel ?? ScoringModelRegistry.getDefaultModel();
-  return model.getCourseAverageDifficulty(legs);
-}
 
 // ============================================================================
 // RouteAnalyzer Class
@@ -154,6 +159,9 @@ export class RouteAnalyzer {
   private readonly mapScale: number;
   private readonly scoringModel: ScoringModel;
   private readonly polygons: Polygon[];
+
+  /** Optional hooks for observing search progress (used by visualization tools). */
+  private readonly visualizer?: RouteAnalyzerVisualizer;
 
   /**
    * Maps control IDs to their nearest node IDs.
@@ -205,11 +213,13 @@ export class RouteAnalyzer {
     edges: Edge[],
     mapScale: number,
     scoringModel?: ScoringModel,
-    polygons: Polygon[] = []
+    polygons: Polygon[] = [],
+    visualizer?: RouteAnalyzerVisualizer
   ) {
     // Create local copies and merge controls into nodes
     this.controls = [...controls];
     this.polygons = polygons || [];
+    this.visualizer = visualizer;
 
     // Initialize nodes map with provided nodes (copied)
     const nodeMap = new Map<string, Node>();
@@ -260,12 +270,6 @@ export class RouteAnalyzer {
     }
 
     return map;
-  }
-
-  /** Extract x/y coordinates from a Node (has x/y directly) or Control (has mapPosition). */
-  private getXY(nodeOrControl: Node | Control): { x: number; y: number } {
-    if ('x' in nodeOrControl) return { x: nodeOrControl.x, y: nodeOrControl.y };
-    return { x: nodeOrControl.mapPosition.x, y: nodeOrControl.mapPosition.y };
   }
 
   /**
@@ -364,58 +368,13 @@ export class RouteAnalyzer {
   // Distance Calculation Methods
   // ---------------------------------------------------------------------------
 
-  /**
-   * Calculate the distance of an edge in meters.
-   *
-   * For ignoreLength edges (stairs), returns zero distance.
-   * For regular edges, calculates geometric distance using map scale.
-   *
-   * @param edge - The edge to measure (optional, for length adjustment)
-   * @param fromNode - Source node coordinates
-   * @param toNode - Target node coordinates
-   * @param penalties - Optional multiplicative penalties for edges (key: "from:to")
-   * @returns Distance in meters, or Infinity if nodes are invalid
-   */
-  private getCoordinates(item: Node | Control): { x: number; y: number } {
-    if ("mapPosition" in item && item.mapPosition) {
-      return item.mapPosition;
-    }
-
-    // TODO: throw error
-    // Fallback for Node types or Controls without mapPosition (should not happen for Control)
-    const node = item as any;
-    return { x: node.x || 0, y: node.y || 0 };
-  }
-
   private calculateEdgeDistanceMeters(
     edge: Edge | undefined,
     fromNode: Node | Control | null,
     toNode: Node | Control | null,
     penalties?: Map<string, number>,
   ): number {
-    if (!fromNode || !toNode) {
-      return Number.POSITIVE_INFINITY;
-    }
-
-    let distanceMeters = 0;
-
-    // ignoreLength edges have no geometric distance contribution (e.g., teleport/stairs handled elsewhere)
-    if (!edge?.ignoreLength) {
-      const fromPos = this.getCoordinates(fromNode);
-      const toPos = this.getCoordinates(toNode);
-      const mapDistanceMM = Math.hypot(toPos.x - fromPos.x, toPos.y - fromPos.y);
-      distanceMeters = mapDistanceMM * this.mapScale * MM_TO_METERS;
-    }
-
-    // Apply penalty if exists
-    if (penalties && edge) {
-      const penalty = penalties.get(`${edge.from}:${edge.to}`);
-      if (penalty) {
-        distanceMeters *= penalty;
-      }
-    }
-
-    return distanceMeters;
+    return calculateEdgeDistanceMetersUtil(edge, fromNode, toNode, this.mapScale, penalties);
   }
 
   /**
@@ -425,17 +384,11 @@ export class RouteAnalyzer {
    * @returns Total distance in meters
    */
   calculatePathDistance(path: string[]): number {
-    let total = 0;
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const fromNode = this.findNodeOrControl(path[i]);
-      const toNode = this.findNodeOrControl(path[i + 1]);
-      const edge = this.findEdge(path[i], path[i + 1]);
-
-      total += this.calculateEdgeDistanceMeters(edge, fromNode, toNode);
-    }
-
-    return total;
+    return calculatePathDistanceUtil(path, {
+      resolveNode: (id) => this.findNodeOrControl(id),
+      findEdge: (from, to) => this.findEdge(from, to),
+      mapScale: this.mapScale,
+    });
   }
 
   /**
@@ -447,30 +400,7 @@ export class RouteAnalyzer {
    * @returns Total distance in meters along the shortest paths through the graph
    */
   calculatePathDistanceThroughGraph(waypoints: string[]): number {
-    if (waypoints.length < 2) {
-      return 0;
-    }
-
-    let totalDistance = 0;
-
-    // For each consecutive pair of waypoints, find the shortest path
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const fromId = waypoints[i];
-      const toId = waypoints[i + 1];
-
-      // Find shortest path between this pair using Dijkstra
-      const result = this.dijkstra(fromId, toId);
-
-      if (result === null) {
-        // No path exists between these waypoints
-        // Return infinity to indicate invalid route
-        return Number.POSITIVE_INFINITY;
-      }
-
-      totalDistance += result.distance;
-    }
-
-    return totalDistance;
+    return calculatePathDistanceThroughGraphUtil(waypoints, (from, to) => this.dijkstra(from, to));
   }
 
   /**
@@ -481,11 +411,7 @@ export class RouteAnalyzer {
    * @returns Distance in meters
    */
   calculateStraightLineDistance(c1: Control, c2: Control): number {
-    const p1 = this.getCoordinates(c1);
-    const p2 = this.getCoordinates(c2);
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    return Math.sqrt(dx * dx + dy * dy) * this.mapScale * MM_TO_METERS;
+    return calculateStraightLineDistanceUtil(c1, c2, this.mapScale);
   }
 
   /**
@@ -497,15 +423,11 @@ export class RouteAnalyzer {
    * @returns Distance in meters
    */
   calculateRouteDistance(fromControl: Control, toControl: Control): number {
-    const fromNodeId = this.controlNodeMap.get(fromControl.id);
-    const toNodeId = this.controlNodeMap.get(toControl.id);
-
-    if (!fromNodeId || !toNodeId) {
-      return this.calculateStraightLineDistance(fromControl, toControl);
-    }
-
-    const result = this.dijkstra(fromNodeId, toNodeId);
-    return result?.distance ?? this.calculateStraightLineDistance(fromControl, toControl);
+    return calculateRouteDistanceUtil(fromControl, toControl, {
+      controlNodeMap: this.controlNodeMap,
+      mapScale: this.mapScale,
+      findShortestPathBetween: (from, to) => this.dijkstra(from, to),
+    });
   }
 
   /**
@@ -515,13 +437,11 @@ export class RouteAnalyzer {
    * @returns Total course length in meters
    */
   calculateCourseLength(controls: Control[]): number {
-    let total = 0;
-
-    for (let i = 0; i < controls.length - 1; i++) {
-      total += this.calculateRouteDistance(controls[i], controls[i + 1]);
-    }
-
-    return total;
+    return calculateCourseLengthUtil(controls, {
+      controlNodeMap: this.controlNodeMap,
+      mapScale: this.mapScale,
+      findShortestPathBetween: (from, to) => this.dijkstra(from, to),
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -530,12 +450,9 @@ export class RouteAnalyzer {
 
   /**
    * Find the shortest path between two nodes using Dijkstra's algorithm.
-   *
-   * The algorithm builds an adjacency list from edges, then explores nodes
-   * in order of increasing distance from the start until reaching the end.
-   *
-   * Time complexity: O((V + E) log V) with priority queue, currently O(V²)
-   * due to linear minimum finding (acceptable for typical graph sizes).
+   * See route-search.ts for the algorithm itself; this method builds the
+   * weighted adjacency list from this analyzer's graph and adapts the
+   * search's observation hooks to the visualizer.
    *
    * @param startNodeId - Starting node ID
    * @param endNodeId - Target node ID
@@ -543,181 +460,16 @@ export class RouteAnalyzer {
    * @returns PathResult with distance and path, or null if no path exists
    */
   dijkstra(startNodeId: string, endNodeId: string, penalties?: Map<string, number>): PathResult | null {
-    // Build adjacency list: nodeId -> Map<neighborId, distance>
-    const graph = this.buildAdjacencyList(penalties);
-
-    // Ensure start and end nodes exist in the graph
-    if (!graph.has(startNodeId)) {
-      graph.set(startNodeId, new Map());
-    }
-    if (!graph.has(endNodeId)) {
-      graph.set(endNodeId, new Map());
-    }
-
-    // Initialize distance tracking
-    const distances = new Map<string, number>();
-    const previous = new Map<string, string>();
-    const unvisited = new Set<string>();
-
-    // Set initial distances: 0 for start, Infinity for all others
-    distances.set(startNodeId, 0);
-    graph.forEach((_, nodeId) => {
-      if (nodeId !== startNodeId) {
-        distances.set(nodeId, Infinity);
-      }
-      unvisited.add(nodeId);
+    return findShortestPath(startNodeId, endNodeId, {
+      edges: this.edges,
+      resolveNode: (id) => this.findNodeOrControl(id),
+      edgeDistanceMeters: (edge, from, to) => this.calculateEdgeDistanceMeters(edge, from, to, penalties),
+      hooks: {
+        onNodeSettled: (nodeId, distance) => this.visualizer?.onNodeSettled?.({ algorithm: "dijkstra", nodeId, distance }),
+        onEdgeEvaluated: (fromNodeId, toNodeId, relaxed, distance) =>
+          this.visualizer?.onEdgeEvaluated?.({ algorithm: "dijkstra", fromNodeId, toNodeId, relaxed, distance }),
+      },
     });
-
-    // Main loop: process nodes in order of distance
-    while (unvisited.size > 0) {
-      // Find unvisited node with minimum distance
-      const minNode = this.findMinDistanceNode(unvisited, distances);
-      if (!minNode) break;
-
-      const minDist = distances.get(minNode) ?? Infinity;
-
-      // If we can't reach any more nodes, or we've reached the destination, stop
-      if (minDist === Infinity) break;
-      if (minNode === endNodeId) break;
-
-      unvisited.delete(minNode);
-
-      // Update distances to neighbors
-      const neighbors = graph.get(minNode);
-      if (neighbors) {
-        neighbors.forEach((edgeWeight, neighborId) => {
-          if (!unvisited.has(neighborId)) return;
-
-          const altDist = minDist + edgeWeight;
-          if (altDist < (distances.get(neighborId) ?? Infinity)) {
-            distances.set(neighborId, altDist);
-            previous.set(neighborId, minNode);
-          }
-        });
-      }
-    }
-
-    // Reconstruct path by following previous pointers
-    return this.reconstructPath(startNodeId, endNodeId, distances, previous);
-  }
-
-  /**
-   * Build an adjacency list representation of the graph.
-   * Maps each node to its neighbors with edge distances.
-   */
-  private buildAdjacencyList(penalties?: Map<string, number>): Map<string, Map<string, number>> {
-    const graph = new Map<string, Map<string, number>>();
-
-    for (const edge of this.edges) {
-      const fromNode = this.findNodeOrControl(edge.from);
-      const toNode = this.findNodeOrControl(edge.to);
-
-      if (!fromNode || !toNode) continue;
-
-      // Ensure both nodes have entries in the graph
-      if (!graph.has(edge.from)) {
-        graph.set(edge.from, new Map());
-      }
-      if (!graph.has(edge.to)) {
-        graph.set(edge.to, new Map());
-      }
-
-      // Add forward edge
-      const distance = this.calculateEdgeDistanceMeters(edge, fromNode, toNode, penalties);
-      if (Number.isFinite(distance)) {
-        const forwardMap = graph.get(edge.from)!;
-        const existing = forwardMap.get(edge.to);
-        if (existing === undefined || distance < existing) {
-          forwardMap.set(edge.to, distance);
-        }
-      }
-
-      // Add reverse edge for bidirectional edges
-      if (!edge.oneWay) {
-        // Warning: This re-uses 'edge' object.
-        // calculateEdgeDistanceMeters uses 'edge.from' and 'edge.to' for penalty lookup.
-        // For reverse direction, we must ensure penalty lookup matches the traversal direction if we want direction-specific penalties.
-        // Or we assume penalties are symmetric or keyed correctly.
-        // Current implementation: calculateEdgeDistanceMeters uses edge.from/to from the object.
-        // But for reverse path (to->from), we are logically traversing "to"->"from".
-        // The 'edge' object still says "from"->"to".
-
-        // Let's rely on the fact that penalties should be symmetric or we construct keys carefully.
-        // But calculateEdgeDistanceMeters implementation reads:
-        //   const penalty = penalties.get(`${edge.from}:${edge.to}`);
-        // This is always the forward key.
-        // To support direction specific penalties, we should probably pass the traversal direction to calculateEdgeDistanceMeters?
-        // Or cleaner: penalties should be applied to the 'result' distance regardless, based on traversal.
-
-        // Actually, my calculateEdgeDistanceMeters update only looks at edge.from:edge.to.
-        // This means it PENALIZES the edge object itself (forward key).
-        // If I want to penalize usage in ANY direction, this is fine, provided I don't need directional penalties.
-        // For "stairs used", it doesn't matter which way you went, we want to penalize that stair.
-
-        const reverseDistance = this.calculateEdgeDistanceMeters(edge, toNode, fromNode, penalties);
-        if (Number.isFinite(reverseDistance)) {
-          const reverseMap = graph.get(edge.to)!;
-          const existing = reverseMap.get(edge.from);
-          if (existing === undefined || reverseDistance < existing) {
-            reverseMap.set(edge.from, reverseDistance);
-          }
-        }
-      }
-    }
-
-    return graph;
-  }
-
-  /**
-   * Find the unvisited node with minimum distance.
-   * Helper for Dijkstra's algorithm.
-   */
-  private findMinDistanceNode(unvisited: Set<string>, distances: Map<string, number>): string | null {
-    let minNode: string | null = null;
-    let minDist = Infinity;
-
-    for (const nodeId of unvisited) {
-      const dist = distances.get(nodeId) ?? Infinity;
-      if (dist < minDist) {
-        minDist = dist;
-        minNode = nodeId;
-      }
-    }
-
-    return minNode;
-  }
-
-  /**
-   * Reconstruct the path from Dijkstra's previous pointer map.
-   */
-  private reconstructPath(
-    startNodeId: string,
-    endNodeId: string,
-    distances: Map<string, number>,
-    previous: Map<string, string>,
-  ): PathResult | null {
-    const distance = distances.get(endNodeId) ?? Infinity;
-
-    // No path exists if distance is infinite
-    if (distance === Infinity) {
-      return null;
-    }
-
-    // Build path by following previous pointers backward
-    const path: string[] = [];
-    let current: string | undefined = endNodeId;
-
-    while (current) {
-      path.unshift(current);
-      current = previous.get(current);
-    }
-
-    // Verify path starts at the start node
-    if (path[0] !== startNodeId) {
-      return null;
-    }
-
-    return { distance, path };
   }
 
   /**
@@ -751,16 +503,7 @@ export class RouteAnalyzer {
    * @returns Number of one-way edges traversed
    */
   countOneWayEdgesInPath(path: string[]): number {
-    let count = 0;
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const edge = this.findEdge(path[i], path[i + 1]);
-      if (edge?.oneWay) {
-        count++;
-      }
-    }
-
-    return count;
+    return countOneWayEdgesInPathUtil(path, (from, to) => this.findEdge(from, to));
   }
 
   /**
@@ -771,16 +514,7 @@ export class RouteAnalyzer {
    * @returns Number of ignoreLength edges traversed
    */
   countIgnoreLengthEdgesInPath(path: string[]): number {
-    let count = 0;
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const edge = this.findEdge(path[i], path[i + 1]);
-      if (edge?.ignoreLength) {
-        count++;
-      }
-    }
-
-    return count;
+    return countIgnoreLengthEdgesInPathUtil(path, (from, to) => this.findEdge(from, to));
   }
 
   /**
@@ -792,30 +526,7 @@ export class RouteAnalyzer {
    * @returns Total number of alternative edges (routes not taken)
    */
   countAlternativeEdgesInPath(path: string[]): number {
-    let totalAlternativeEdges = 0;
-    const deadEndEdgeIds = this.getDeadEndEdgeIds();
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const nodeId = path[i];
-      const nextNodeId = path[i + 1];
-      const incomingNodeId = i > 0 ? path[i - 1] : null;
-
-      // Count non-dead-end alternative outgoing edges (excluding path edge and incoming)
-      const alternatives = (this.nodeEdges.get(nodeId) || []).filter((e: Edge) => {
-        if (e.from !== nodeId) return false;
-        // Exclude the incoming direction
-        if (incomingNodeId && e.to === incomingNodeId) return false;
-        // Exclude the path edge (it's the route, not an alternative)
-        if (e.to === nextNodeId) return false;
-        // Exclude dead-end edges
-        if (deadEndEdgeIds.has(edgeKey(e))) return false;
-        return true;
-      });
-
-      totalAlternativeEdges += alternatives.length;
-    }
-
-    return totalAlternativeEdges;
+    return countAlternativeEdgesInPathUtil(path, this.nodeEdges, this.getDeadEndEdgeIds());
   }
 
   // ---------------------------------------------------------------------------
@@ -826,13 +537,7 @@ export class RouteAnalyzer {
    * Get the polygon for a node or control position.
    */
   private getPolygonForNodeOrControl(nodeOrControl: Node | Control): Polygon | undefined {
-    if (this.polygons.length === 0) return undefined;
-    const point = {
-      x: (nodeOrControl as any).x ?? (nodeOrControl as any).mapPosition?.x,
-      y: (nodeOrControl as any).y ?? (nodeOrControl as any).mapPosition?.y,
-    };
-    if (point.x === undefined || point.y === undefined) return undefined;
-    return findPolygonForPoint(point, this.polygons);
+    return getPolygonForNodeOrControlUtil(nodeOrControl, this.polygons);
   }
 
   /**
@@ -840,37 +545,19 @@ export class RouteAnalyzer {
    * Indices match the path array.
    */
   private buildPathPolygons(path: string[]): (Polygon | undefined)[] {
-    return path.map((nodeId) => {
-      const node = this.findNodeOrControl(nodeId);
-      return node ? this.getPolygonForNodeOrControl(node) : undefined;
-    });
+    return buildPathPolygonsUtil(path, (id) => this.findNodeOrControl(id), this.polygons);
   }
 
   /**
    * Calculate total climb for a path.
    * Based on elevation differences when nodes are on different levels.
-   * 
+   *
    * @param path - Array of node IDs forming the path
    * @param pathPolygons - Array of polygons for each node (indices match path)
    * @returns Total climb in meters
    */
   calculatePathClimb(path: string[], pathPolygons: (Polygon | undefined)[]): number {
-    let totalClimb = 0;
-
-    for (let i = 0; i < path.length - 1; i++) {
-        const fromPolygon = pathPolygons[i];
-        const toPolygon = pathPolygons[i + 1];
-        
-        // Get elevations from polygons
-        const fromElevation = fromPolygon?.elevation ?? (fromPolygon?.level ?? 0) * 3;
-        const toElevation = toPolygon?.elevation ?? (toPolygon?.level ?? 0) * 3;
-        
-        // Add climb if going up
-        if (toElevation > fromElevation) {
-            totalClimb += (toElevation - fromElevation);
-        }
-    }
-    return totalClimb;
+    return calculatePathClimbUtil(path, pathPolygons);
   }
 
   /**
@@ -927,15 +614,25 @@ export class RouteAnalyzer {
    * @returns Difficulty score, or 0 if no path exists
    */
   calculateLegDifficultyBetweenControls(fromControl: Control, toControl: Control): number {
-    const fromNodeId = this.controlNodeMap.get(fromControl.id);
-    const toNodeId = this.controlNodeMap.get(toControl.id);
+    return this.shortestRouteBetweenControls(fromControl, toControl)?.difficulty ?? 0;
+  }
 
-    if (!fromNodeId || !toNodeId) return 0;
-
-    const result = this.dijkstra(fromNodeId, toNodeId);
-    if (!result) return 0;
-
-    return this.calculatePathDifficulty(result.path);
+  /**
+   * Find the shortest route between two controls — the same route shown at the
+   * top of the UI's route list and used by every analysis tool.
+   *
+   * "Shortest" means shortest by geometric distance (the metric
+   * {@link findAlternativePaths} sorts by), NOT the lowest-cost path returned
+   * by {@link dijkstra} (which treats stairs as length-free and may therefore
+   * pick a different path). This is the single source of truth for the route a
+   * leg's difficulty is scored against, keeping core, the web app and the CLI
+   * tools consistent.
+   *
+   * @returns The shortest route, or undefined if no route exists.
+   */
+  shortestRouteBetweenControls(fromControl: Control, toControl: Control): RouteInfo | undefined {
+    // findAlternativePathsBetweenControls returns routes sorted by ascending distance.
+    return this.findAlternativePathsBetweenControls(fromControl.id, toControl.id)[0];
   }
 
   /**
@@ -946,19 +643,12 @@ export class RouteAnalyzer {
    * @returns LegDifficulty breakdown
    */
   calculateDetailedLegDifficultyBetweenControls(fromControl: Control, toControl: Control): LegDifficulty {
-    const fromNodeId = this.controlNodeMap.get(fromControl.id);
-    const toNodeId = this.controlNodeMap.get(toControl.id);
-
-    if (!fromNodeId || !toNodeId) {
+    const shortest = this.shortestRouteBetweenControls(fromControl, toControl);
+    if (!shortest) {
       return { oneWay: 0, alternativeEdges: 0, stairs: 0, total: 0 };
     }
 
-    const result = this.dijkstra(fromNodeId, toNodeId);
-    if (!result) {
-      return { oneWay: 0, alternativeEdges: 0, stairs: 0, total: 0 };
-    }
-
-    return this.calculateLegDifficulty(result.path);
+    return this.calculateLegDifficulty(shortest.path);
   }
 
   /**
@@ -982,78 +672,24 @@ export class RouteAnalyzer {
   // ---------------------------------------------------------------------------
 
   /**
-   * Analyze a route for decision points and alternative edges.
+   * Analyze a route for decision points, branching points, and alternative edges.
    *
-   * Decision points are computed by the shared {@link analyzeDecisionPoints}
-   * function.  Alternative edges are edges at each node that are not part
-   * of the route (dead-end edges excluded).
+   * Decision points use {@link analyzeDecisionPoints}: nodes where the runner
+   * faces a meaningful choice (dead-ends < 50 m and insignificant branches are
+   * excluded). Branching points use {@link analyzeBranchingPoints}: every node
+   * where the runner has more than one outgoing edge (no filtering). Both are
+   * also used by the Alpha difficulty model via the same shared functions.
    *
    * @param path - Array of node IDs forming the path
-   * @returns Object with decisionPoints, decisionPointNodeIds, and alternativeEdges counts
+   * @returns Object with decisionPoints, decisionPointNodeIds, branchingPointNodeIds, and alternativeEdges
    */
-  analyzeRoute(path: string[]): { decisionPoints: number; decisionPointNodeIds: string[]; alternativeEdges: number } {
-    // Decision points — delegate to the shared function
-    const context = this.buildRouteContext(path);
-    const dpAnalysis = analyzeDecisionPoints(context);
-
-    // Alternative edges — count non-route, non-dead-end edges at each node
-    let alternativeEdges = 0;
-    const deadEndEdgeIds = this.getDeadEndEdgeIds();
-
-    const pathEdgeIds = new Set<string>();
-    for (let i = 0; i < path.length - 1; i++) {
-      const edge = this.findEdge(path[i], path[i + 1]);
-      if (edge) pathEdgeIds.add(edgeKey(edge));
-    }
-
-    for (let i = 0; i < path.length; i++) {
-      const nodeId = path[i];
-      const connectedEdges = this.nodeEdges.get(nodeId) || [];
-
-      // Track which edges are part of the route at this node
-      const routeEdgesAtNode = new Set<string>();
-
-      if (i > 0) {
-        const prevNodeId = path[i - 1];
-        const hasEdgeFromPrev = connectedEdges.some(
-          (e) => (e.from === prevNodeId && e.to === nodeId) || (!e.oneWay && e.from === nodeId && e.to === prevNodeId),
-        );
-        if (hasEdgeFromPrev) {
-          routeEdgesAtNode.add(`${prevNodeId}-${nodeId}`);
-        }
-      }
-
-      if (i < path.length - 1) {
-        const nextNodeId = path[i + 1];
-        const hasEdgeToNext = connectedEdges.some(
-          (e) => (e.from === nodeId && e.to === nextNodeId) || (!e.oneWay && e.from === nextNodeId && e.to === nodeId),
-        );
-        if (hasEdgeToNext) {
-          routeEdgesAtNode.add(`${nodeId}-${nextNodeId}`);
-        }
-      }
-
-      // Count unique non-dead-end edges at this node
-      let totalEdgesAtNode = 0;
-      const countedEdges = new Set<string>();
-
-      for (const edge of connectedEdges) {
-        if (deadEndEdgeIds.has(edgeKey(edge)) && !pathEdgeIds.has(edgeKey(edge))) continue;
-        const dirEdgeKey = edge.oneWay || edge.from === nodeId ? `${edge.from}-${edge.to}` : `${edge.to}-${edge.from}`;
-        if (!countedEdges.has(dirEdgeKey)) {
-          totalEdgesAtNode++;
-          countedEdges.add(dirEdgeKey);
-        }
-      }
-
-      alternativeEdges += totalEdgesAtNode - routeEdgesAtNode.size;
-    }
-
-    return {
-      decisionPoints: dpAnalysis.count,
-      decisionPointNodeIds: dpAnalysis.nodeIds,
-      alternativeEdges,
-    };
+  analyzeRoute(path: string[]): { decisionPoints: number; decisionPointNodeIds: string[]; branchingPointNodeIds: string[]; alternativeEdges: number } {
+    return analyzeRouteUtil({
+      ...this.buildRouteContext(path),
+      findEdge: (from, to) => this.findEdge(from, to),
+      nodeEdges: this.nodeEdges,
+      deadEndEdgeIds: this.getDeadEndEdgeIds(),
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1066,25 +702,7 @@ export class RouteAnalyzer {
    * Get the sequence of edge labels for a path.
    */
   getRouteLabels(path: string[]): string[] {
-    const labels: string[] = [];
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const fromNodeId = path[i];
-      const toNodeId = path[i + 1];
-      const edge = this.findEdge(fromNodeId, toNodeId);
-
-      if (edge) {
-        // Use reverse label if traversing edge in reverse direction
-        const isReverse = edge.from === toNodeId && edge.to === fromNodeId;
-        const label = isReverse && edge.reverseLabel ? edge.reverseLabel : edge.label;
-
-        if (label) {
-          labels.push(label);
-        }
-      }
-    }
-
-    return labels;
+    return getRouteLabelsUtil(path, (from, to) => this.findEdge(from, to));
   }
 
   /**
@@ -1094,7 +712,7 @@ export class RouteAnalyzer {
    * @returns Comma-separated string of edge labels
    */
   getRouteDescription(path: string[]): string {
-    return this.getRouteLabels(path).join(", ");
+    return getRouteDescriptionUtil(path, (from, to) => this.findEdge(from, to));
   }
 
   /**
@@ -1105,23 +723,7 @@ export class RouteAnalyzer {
    * @returns Comma-separated string of stair edge labels
    */
   getStairSequence(path: string[]): string {
-    const stairLabels: string[] = [];
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const fromNodeId = path[i];
-      const toNodeId = path[i + 1];
-      const edge = this.findEdge(fromNodeId, toNodeId);
-
-      if (edge) {
-        const isReverse = edge.from === toNodeId && edge.to === fromNodeId;
-        const label = isReverse && edge.reverseLabel ? edge.reverseLabel : edge.label;
-        if (label) {
-        stairLabels.push(label);
-        }
-      }
-    }
-
-    return stairLabels.join(",");
+    return getStairSequenceUtil(path, (from, to) => this.findEdge(from, to));
   }
 
   // ---------------------------------------------------------------------------
@@ -1176,7 +778,9 @@ export class RouteAnalyzer {
       if (isNewPath) {
         uniquePathStrings.add(pathString);
         const pathWithControls = this.addControlsToPath(currentPath.path, fromControlId, toControlId);
-        paths.push(this.buildRouteInfo(pathWithControls, fromControlId, toControlId));
+        const routeInfo = this.buildRouteInfo(pathWithControls, fromControlId, toControlId);
+        paths.push(routeInfo);
+        this.visualizer?.onRouteFound?.({ algorithm: "dijkstra", route: routeInfo, rank: paths.length - 1 });
       }
 
       // Apply penalties to edges in this path to force exploration of other routes
@@ -1232,7 +836,9 @@ export class RouteAnalyzer {
     const description = labels.join(", ");
     const oneWayEdges = this.countOneWayEdgesInPath(path);
     const ignoreLengthEdges = this.countIgnoreLengthEdgesInPath(path);
-    const difficulty = this.calculatePathDifficulty(path);
+    const context = this.buildRouteContext(path);
+    const difficulty = this.scoringModel.calculateDifficulty(context);
+    const difficultyFormula = this.scoringModel.getBreakdownFormula(context);
     const totalClimb = this.calculatePathClimb(path, pathPolygons);
 
     return {
@@ -1241,12 +847,14 @@ export class RouteAnalyzer {
       pathPolygons,
       decisionPoints: analysis.decisionPoints,
       decisionPointNodeIds: analysis.decisionPointNodeIds,
+      branchingPointNodeIds: analysis.branchingPointNodeIds,
       alternativeEdges: analysis.alternativeEdges,
       oneWayEdges,
       ignoreLengthEdges,
       description,
       labels,
       difficulty,
+      difficultyFormula,
       totalClimb,
     };
   }
@@ -1295,315 +903,99 @@ export class RouteAnalyzer {
    *
    * @param fromControlId - Starting control ID
    * @param toControlId - Destination control ID
-   * @param maxResults - Maximum number of routes to return (default: 200)
+   * @param maxResults - Maximum number of routes to return (default: 1000)
+   * @param distanceCutoff - Optional, default off: prune routes beyond ratio*shortest or shortest+absoluteMeters
    * @returns Array of RouteInfo objects with unique label sequences, sorted by distance
+   * Note: if more than `maxResults` distinct stair sequences exist, only the
+   * `maxResults` shortest are returned (longer sequences are dropped) and a
+   * warning is logged.
    */
-  findAllAlternativePathsBetweenControls(fromControlId: string, toControlId: string, maxResults: number = 200): RouteInfo[] {
+  findAllAlternativePathsBetweenControls(
+    fromControlId: string,
+    toControlId: string,
+    maxResults: number = 1000,
+    distanceCutoff?: { ratio?: number; absoluteMeters?: number },
+  ): RouteInfo[] {
     const fromNodeId = this.controlNodeMap.get(fromControlId);
     const toNodeId = this.controlNodeMap.get(toControlId);
 
     if (!fromNodeId || !toNodeId) return [];
 
-    // -------------------------------------------------------------------------
-    // Phase 1: Union-Find with path compression
-    // Merge nodes connected by unlabeled edges into clusters.
-    // -------------------------------------------------------------------------
-    const parent = new Map<string, string>();
-    const find = (x: string): string => {
-      if (!parent.has(x)) parent.set(x, x);
-      let root = x;
-      while (parent.get(root) !== root) root = parent.get(root)!;
-      // Path compression
-      let cur = x;
-      while (cur !== root) {
-        const next = parent.get(cur)!;
-        parent.set(cur, root);
-        cur = next;
-      }
-      return root;
+    const { routes, truncated } = findAllAlternativePaths(fromNodeId, toNodeId, {
+      edges: this.edges,
+      resolveNode: (id) => this.findNodeOrControl(id),
+      edgeDistanceMeters: (edge, from, to) => this.calculateEdgeDistanceMeters(edge, from, to),
+      findEdge: (from, to) => this.findEdge(from, to),
+      getRouteLabels: (path) => this.getRouteLabels(path),
+      buildRoute: (path) => this.buildRouteInfo(this.addControlsToPath(path, fromControlId, toControlId), fromControlId, toControlId),
+      hooks: {
+        onNodeSettled: (nodeId, distance) => this.visualizer?.onNodeSettled?.({ algorithm: "all-routes", nodeId, distance }),
+        onEdgeEvaluated: (fromNodeId, toNodeId, relaxed, distance) =>
+          this.visualizer?.onEdgeEvaluated?.({ algorithm: "all-routes", fromNodeId, toNodeId, relaxed, distance }),
+        onRouteFound: (route, rank) => this.visualizer?.onRouteFound?.({ algorithm: "all-routes", route, rank }),
+      },
+    }, maxResults, distanceCutoff);
+
+    if (truncated) {
+      console.warn(
+        `findAllAlternativePathsBetweenControls: hit maxResults (${maxResults}) for ${fromControlId}->${toControlId}; ` +
+        `longer stair sequences were not enumerated. Pass a higher maxResults for full enumeration.`,
+      );
+    }
+
+    return routes;
+  }
+
+  /**
+   * Find a single route between two controls using a human planning model.
+   * See human-route.ts for the algorithm itself. Convenience wrapper around
+   * `findHumanRouteWithTrace` for callers that only need the route.
+   */
+  findHumanRouteBetweenControls(fromControlId: string, toControlId: string): RouteInfo | undefined {
+    return this.findHumanRouteWithTrace(fromControlId, toControlId)?.route;
+  }
+
+  /**
+   * Find the route a human would plan between two controls, with the
+   * step-by-step exploration trace (which floor regions were considered,
+   * in what order, and how the plan closed) — see human-route.ts and
+   * planning/07-human-route-simulation.md. `params` is optional and, when
+   * omitted, reproduces the fixed default heuristic exactly.
+   */
+  findHumanRouteWithTrace(fromControlId: string, toControlId: string, params?: HumanModelParams): HumanRouteResult | undefined {
+    const fromNodeId = this.controlNodeMap.get(fromControlId);
+    const toNodeId = this.controlNodeMap.get(toControlId);
+    if (!fromNodeId || !toNodeId) return undefined;
+
+    const searchResult = findHumanRoute(fromNodeId, toNodeId, {
+      edges: this.edges,
+      resolveNode: (id) => this.findNodeOrControl(id),
+      edgeDistanceMeters: (edge, from, to) => this.calculateEdgeDistanceMeters(edge, from, to),
+      getCoordinates,
+      mapScale: this.mapScale,
+      hooks: {
+        onNodeSettled: (nodeId, distance) => this.visualizer?.onNodeSettled?.({ algorithm: "human-route", nodeId, distance }),
+        onEdgeEvaluated: (fromNodeId, toNodeId, relaxed, distance) =>
+          this.visualizer?.onEdgeEvaluated?.({ algorithm: "human-route", fromNodeId, toNodeId, relaxed, distance }),
+      },
+      params,
+    });
+
+    if (!searchResult) return undefined;
+
+    const pathWithControls = this.addControlsToPath(searchResult.path, fromControlId, toControlId);
+    const routeInfo = this.buildRouteInfo(pathWithControls, fromControlId, toControlId);
+    this.visualizer?.onRouteFound?.({ algorithm: "human-route", route: routeInfo, rank: 0 });
+
+    return {
+      route: routeInfo,
+      sameFloor: searchResult.sameFloor,
+      forwardLabels: searchResult.forwardLabels,
+      backwardLabels: searchResult.backwardLabels,
+      explorationTrace: searchResult.trace.steps,
+      meetingAttempts: searchResult.trace.meetingAttempts,
+      clusterOf: searchResult.clusterOf,
     };
-    const union = (a: string, b: string): void => {
-      const ra = find(a), rb = find(b);
-      if (ra !== rb) parent.set(ra, rb);
-    };
-
-    // Initialize all nodes and controls
-    for (const node of this.nodes) parent.set(node.id, node.id);
-    for (const control of this.controls) parent.set(control.id, control.id);
-
-    // Union nodes connected by bidirectional unlabeled edges (non-stair corridors).
-    // One-way unlabeled edges are NOT unioned — they become directed cluster edges
-    // so that BFS within a cluster is always bidirectionally reachable.
-    for (const edge of this.edges) {
-      if ((!edge.label || edge.label === '') && !edge.oneWay) {
-        union(edge.from, edge.to);
-      }
-    }
-
-    // -------------------------------------------------------------------------
-    // Phase 2: Build cluster graph adjacency
-    // Each labeled edge becomes a directed cluster edge (+ reverse if bidirectional).
-    // One-way unlabeled edges also become directed cluster edges (with empty label).
-    // Track the underlying edge ID to enforce "each physical edge used at most once".
-    // -------------------------------------------------------------------------
-    interface ClusterEdge {
-      toCluster: string;
-      label: string;
-      fromNode: string;   // original graph node on the source side
-      toNode: string;      // original graph node on the destination side
-      edgeId: string;      // underlying edge key (same for both directions, used for deduplication)
-    }
-    const clusterAdj = new Map<string, ClusterEdge[]>();
-
-    for (const edge of this.edges) {
-      const hasLabel = edge.label && edge.label !== '';
-      const isOneWayUnlabeled = !hasLabel && !!edge.oneWay;
-
-      // Skip bidirectional unlabeled edges — they're within clusters
-      if (!hasLabel && !isOneWayUnlabeled) continue;
-
-      const fc = find(edge.from);
-      const tc = find(edge.to);
-      const label = edge.label || '';
-
-      if (!clusterAdj.has(fc)) clusterAdj.set(fc, []);
-      clusterAdj.get(fc)!.push({
-        toCluster: tc, label, fromNode: edge.from, toNode: edge.to, edgeId: edgeKey(edge),
-      });
-
-      if (!edge.oneWay) {
-        const revLabel = edge.reverseLabel || label;
-        if (!clusterAdj.has(tc)) clusterAdj.set(tc, []);
-        clusterAdj.get(tc)!.push({
-          toCluster: fc, label: revLabel, fromNode: edge.to, toNode: edge.from, edgeId: edgeKey(edge),
-        });
-      }
-    }
-
-    const startCluster = find(fromNodeId);
-    const endCluster = find(toNodeId);
-
-    // -------------------------------------------------------------------------
-    // Phase 3: DFS on cluster graph to enumerate all distinct label sequences.
-    // Constraint: each underlying labeled edge (by edge ID) used at most once.
-    // This prevents loops while allowing a cluster to be revisited via different stairs.
-    // Cap the number of unique sequences to keep stitching + route-info computation fast.
-    // -------------------------------------------------------------------------
-    const MAX_LABEL_DEPTH = 25;
-    const MAX_SEQUENCES = 5000;
-    const MAX_DFS_CALLS = 100_000;
-    const uniqueLabelSeqs = new Map<string, Array<{ from: string; to: string }>>();
-    let dfsCallCount = 0;
-
-    const dfs = (
-      cluster: string,
-      labels: string[],
-      waypoints: Array<{ from: string; to: string }>,
-      usedEdgeIds: Set<string>,
-    ) => {
-      dfsCallCount++;
-      if (uniqueLabelSeqs.size >= MAX_SEQUENCES || dfsCallCount >= MAX_DFS_CALLS) return;
-
-      // If we reached the end cluster, record the label sequence
-      if (cluster === endCluster) {
-        const seq = labels.join(",");
-        if (!uniqueLabelSeqs.has(seq)) {
-          uniqueLabelSeqs.set(seq, [...waypoints]);
-        }
-        // Don't return — allow continuing through to find longer routes
-      }
-
-      if (labels.length >= MAX_LABEL_DEPTH) return;
-
-      const clusterEdges = clusterAdj.get(cluster);
-      if (!clusterEdges) return;
-
-      for (const e of clusterEdges) {
-        // Each physical stair edge can only be used once (in either direction)
-        if (usedEdgeIds.has(e.edgeId)) continue;
-
-        usedEdgeIds.add(e.edgeId);
-        labels.push(e.label);
-        waypoints.push({ from: e.fromNode, to: e.toNode });
-
-        dfs(e.toCluster, labels, waypoints, usedEdgeIds);
-
-        labels.pop();
-        waypoints.pop();
-        usedEdgeIds.delete(e.edgeId);
-      }
-    };
-
-    dfs(startCluster, [], [], new Set());
-
-    // -------------------------------------------------------------------------
-    // Phase 4: Build unlabeled-only adjacency with edge weights for Dijkstra
-    // -------------------------------------------------------------------------
-    interface UnlabeledEdge { to: string; weight: number; }
-    const unlabeledAdj = new Map<string, UnlabeledEdge[]>();
-
-    for (const edge of this.edges) {
-      if (edge.label && edge.label !== '') continue;
-
-      // Compute distance weight for this edge
-      const fromNode = this.findNodeOrControl(edge.from);
-      const toNode = this.findNodeOrControl(edge.to);
-      const weight = (fromNode && toNode)
-        ? this.calculateEdgeDistanceMeters(edge, fromNode, toNode)
-        : 1;
-
-      if (!unlabeledAdj.has(edge.from)) unlabeledAdj.set(edge.from, []);
-      unlabeledAdj.get(edge.from)!.push({ to: edge.to, weight });
-      if (!edge.oneWay) {
-        if (!unlabeledAdj.has(edge.to)) unlabeledAdj.set(edge.to, []);
-        unlabeledAdj.get(edge.to)!.push({ to: edge.from, weight });
-      }
-    }
-
-    // Dijkstra pathfinding using only unlabeled edges (distance-weighted).
-    // Uses a binary heap for O((V+E) log V) performance.
-    const dijkstraCache = new Map<string, string[] | null>();
-    const findUnlabeledPath = (from: string, to: string): string[] | null => {
-      if (from === to) return [from];
-      const cacheKey = `${from}:${to}`;
-      if (dijkstraCache.has(cacheKey)) return dijkstraCache.get(cacheKey)!;
-
-      const dist = new Map<string, number>([[from, 0]]);
-      const prev = new Map<string, string>();
-      const visited = new Set<string>();
-
-      // Min-heap using array (elements: [distance, nodeId])
-      const heap: [number, string][] = [[0, from]];
-      const heapPush = (d: number, node: string) => {
-        heap.push([d, node]);
-        let i = heap.length - 1;
-        while (i > 0) {
-          const parent = (i - 1) >> 1;
-          if (heap[parent][0] <= heap[i][0]) break;
-          [heap[parent], heap[i]] = [heap[i], heap[parent]];
-          i = parent;
-        }
-      };
-      const heapPop = (): [number, string] | undefined => {
-        if (heap.length === 0) return undefined;
-        const top = heap[0];
-        const last = heap.pop()!;
-        if (heap.length > 0) {
-          heap[0] = last;
-          let i = 0;
-          while (true) {
-            let smallest = i;
-            const l = 2 * i + 1, r = 2 * i + 2;
-            if (l < heap.length && heap[l][0] < heap[smallest][0]) smallest = l;
-            if (r < heap.length && heap[r][0] < heap[smallest][0]) smallest = r;
-            if (smallest === i) break;
-            [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
-            i = smallest;
-          }
-        }
-        return top;
-      };
-
-      while (heap.length > 0) {
-        const [d, current] = heapPop()!;
-        if (visited.has(current)) continue;
-        if (current === to) {
-          const path: string[] = [];
-          let n: string | undefined = to;
-          while (n !== undefined) {
-            path.unshift(n);
-            n = prev.get(n);
-          }
-          dijkstraCache.set(cacheKey, path);
-          return path;
-        }
-        visited.add(current);
-
-        for (const { to: neighbor, weight } of (unlabeledAdj.get(current) || [])) {
-          if (visited.has(neighbor)) continue;
-          const newDist = d + weight;
-          if (newDist < (dist.get(neighbor) ?? Infinity)) {
-            dist.set(neighbor, newDist);
-            prev.set(neighbor, current);
-            heapPush(newDist, neighbor);
-          }
-        }
-      }
-
-      dijkstraCache.set(cacheKey, null);
-      return null;
-    };
-
-    // -------------------------------------------------------------------------
-    // Phase 5: Stitch waypoints into concrete node-level paths
-    // Cap results since buildRouteInfo is expensive per call.
-    // -------------------------------------------------------------------------
-    const MAX_RESULTS = maxResults;
-    const results: RouteInfo[] = [];
-    const seenDescriptions = new Set<string>();
-
-    // Handle the direct unlabeled path (may cross one-way edges within/between clusters).
-    // Always attempt this regardless of cluster structure, since unlabeledAdj
-    // includes one-way edges in their forward direction.
-    const directPath = findUnlabeledPath(fromNodeId, toNodeId);
-    if (directPath) {
-      const pathWithControls = this.addControlsToPath(directPath, fromControlId, toControlId);
-      const routeInfo = this.buildRouteInfo(pathWithControls, fromControlId, toControlId);
-      const desc = routeInfo.labels.join(",");
-      if (!seenDescriptions.has(desc)) {
-        seenDescriptions.add(desc);
-        results.push(routeInfo);
-      }
-    }
-
-    // Sort sequences by label count so simpler routes (fewer stairs) are stitched first.
-    // This ensures the MAX_RESULTS cap doesn't skip short, relevant routes.
-    const sortedSeqs = [...uniqueLabelSeqs.entries()].sort(
-      (a, b) => a[1].length - b[1].length,
-    );
-
-    for (const [, waypoints] of sortedSeqs) {
-      if (results.length >= MAX_RESULTS) break;
-      if (waypoints.length === 0) continue; // handled by the direct-path block above
-
-      const fullPath: string[] = [];
-      let valid = true;
-
-      // Start node → first waypoint's fromNode (unlabeled path)
-      const startSeg = findUnlabeledPath(fromNodeId, waypoints[0].from);
-      if (!startSeg) continue;
-      fullPath.push(...startSeg);
-
-      for (let i = 0; i < waypoints.length; i++) {
-        // Add the labeled edge crossing
-        fullPath.push(waypoints[i].to);
-
-        // Connect to next waypoint's fromNode (unlabeled path within cluster)
-        if (i < waypoints.length - 1) {
-          const midSeg = findUnlabeledPath(waypoints[i].to, waypoints[i + 1].from);
-          if (!midSeg) { valid = false; break; }
-          fullPath.push(...midSeg.slice(1));
-        }
-      }
-
-      if (!valid) continue;
-
-      // Last waypoint's toNode → end node (unlabeled path)
-      const endSeg = findUnlabeledPath(waypoints[waypoints.length - 1].to, toNodeId);
-      if (!endSeg) continue;
-      fullPath.push(...endSeg.slice(1));
-
-      // Dedup by actual label description
-      const actualLabels = this.getRouteLabels(fullPath);
-      const desc = actualLabels.join(",");
-      if (seenDescriptions.has(desc)) continue;
-      seenDescriptions.add(desc);
-
-      const pathWithControls = this.addControlsToPath(fullPath, fromControlId, toControlId);
-      results.push(this.buildRouteInfo(pathWithControls, fromControlId, toControlId));
-    }
-
-    return results.sort((a, b) => a.distance - b.distance);
   }
 
   // ---------------------------------------------------------------------------
@@ -1712,7 +1104,8 @@ export function createRouteAnalyzer(
   nodes: Node[],
   edges: Edge[],
   mapScale: number,
-  polygons: Polygon[] = []
+  polygons: Polygon[] = [],
+  visualizer?: RouteAnalyzerVisualizer
 ): RouteAnalyzer {
-  return new RouteAnalyzer(controls, nodes, edges, mapScale, undefined, polygons);
+  return new RouteAnalyzer(controls, nodes, edges, mapScale, undefined, polygons, visualizer);
 }

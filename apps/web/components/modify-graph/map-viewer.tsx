@@ -2,7 +2,7 @@
 
 import React, { useMemo, useCallback, useState, useEffect } from "react";
 import MapViewer, { type MapViewerState, type MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
-import { useAppData } from "@indoor-o-route-analysis/ui";
+import { useAppData, buildRoutePathSegments } from "@indoor-o-route-analysis/ui";
 import type { MapData } from "@indoor-o-route-analysis/core";
 import type { Control } from "@indoor-o-route-analysis/core";
 import type { Node, Edge } from "@indoor-o-route-analysis/core";
@@ -80,7 +80,7 @@ const MapOverlay = ({
       isControl: boolean,
       onClick?: (e: React.MouseEvent) => void
   ) => {
-      let px, py;
+      let px: number, py: number;
       if ("mapPosition" in point && point.mapPosition) {
            const p = eventPosToMultiPagePixels(point.mapPosition, map, state.pixelsPerMM);
            px = p.x; py = p.y;
@@ -298,26 +298,13 @@ const MapOverlay = ({
 
          const points = path.map(id => getPixelPos(id)).filter(Boolean) as {x:number, y:number}[];
          if (points.length < 2) return null;
-         
-         const segments: { points: {x:number, y:number}[] }[] = [];
-         let currentSeg: {x:number, y:number}[] = [];
-         
-         for(let i=0; i<path.length; i++) {
-             const p = getPixelPos(path[i]);
-             if(!p) continue;
-             if(i===0) { currentSeg.push(p); continue; }
-             
-             const prevId = path[i-1];
-             const edge = edges.find(e => (e.from === prevId && e.to === path[i]) || (!e.oneWay && e.from === path[i] && e.to === prevId));
-             if(edge?.ignoreLength) {
-                 if(currentSeg.length > 0) segments.push({points: currentSeg});
-                 currentSeg = [p];
-             } else {
-                 currentSeg.push(p);
-             }
-         }
-         if(currentSeg.length > 0) segments.push({points: currentSeg});
-         
+
+         const segments = buildRoutePathSegments(
+           path,
+           getPixelPos,
+           (fromId, toId) => !!edges.find(e => (e.from === fromId && e.to === toId) || (!e.oneWay && e.from === toId && e.to === fromId))?.ignoreLength,
+         ).filter(seg => !seg.isMapSegmentTransition);
+
          return (
              <g>
                 {segments.map((seg, i) => {
@@ -348,28 +335,9 @@ const MapOverlay = ({
       // Since we now have 'highlightedMarkers' for From/To, we might suppress these if they overlap?
       // But displayedRoute might be just a segment. 
       // Let's keep them if picking modifyFrom/To is not active.
-      let startCircle = null, endCircle = null, legLine = null;
-      if (displayedRoute && displayedRoute.path.length >= 2 && !modifyFrom) {
-          // ... existing logic for legacy single-leg analysis ...
-          // Reuse existing mapOverlay logic or simplify. 
-          // For now, let's just not render them if modifyFrom is set to avoid clutter.
-      } else if (!modifyFrom && displayedRoute && displayedRoute.path.length >= 2) {
-          // Keep existing behavior for "Controls/Nodes" analysis type
-          const startP = getPixelPos(displayedRoute.path[0]);
-          const endP = getPixelPos(displayedRoute.path[displayedRoute.path.length-1]);
-          if(startP && endP) {
-              const dx = endP.x-startP.x, dy = endP.y-startP.y;
-              const dist = Math.sqrt(dx*dx+dy*dy);
-              let lSx = startP.x, lSy = startP.y, lEx = endP.x, lEy = endP.y;
-              if(dist > 2*CONTROL_RADIUS){
-                  const ux=dx/dist, uy=dy/dist;
-                  lSx+=ux*CONTROL_RADIUS; lSy+=uy*CONTROL_RADIUS; lEx-=ux*CONTROL_RADIUS; lEy-=uy*CONTROL_RADIUS;
-              }
-              legLine = <line x1={lSx} y1={lSy} x2={lEx} y2={lEy} stroke="magenta" strokeWidth={2} opacity={0.5} />;
-              startCircle = <circle cx={startP.x} cy={startP.y} r={CONTROL_RADIUS} stroke="magenta" strokeWidth={2} fill="none" />;
-              endCircle = <circle cx={endP.x} cy={endP.y} r={CONTROL_RADIUS} stroke="magenta" strokeWidth={2} fill="none" />;
-          }
-      }
+      // Start/End circles from the route are not rendered while editing the graph
+      // (the From/To markers are shown via highlightedMarkers instead).
+      const startCircle = null, endCircle = null, legLine = null;
 
       // Modification Overlay
       let modificationOverlay = null;

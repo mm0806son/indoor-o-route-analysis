@@ -22,6 +22,7 @@ export default function GraphEditor() {
   const [showNormalEdges, setShowNormalEdges] = useState(true);
   const [showIgnoreEdges, setShowIgnoreEdges] = useState(true);
   const [highlightDeadEnds, setHighlightDeadEnds] = useState(false);
+  const [showEdgeWeights, setShowEdgeWeights] = useState(false);
   const [findings, setFindings] = useState<GraphFinding[] | null>(null);
   const { selectedEvent, pdfBlobUrl, selectedCourseId } = useAppData();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +82,7 @@ export default function GraphEditor() {
           showNormalEdges={showNormalEdges}
           showIgnoreEdges={showIgnoreEdges}
           highlightDeadEnds={highlightDeadEnds}
+          showEdgeWeights={showEdgeWeights}
         />
 
         {/* Properties Panel */}
@@ -97,6 +99,8 @@ export default function GraphEditor() {
           onShowNormalEdgesChange={setShowNormalEdges}
           highlightDeadEnds={highlightDeadEnds}
           onHighlightDeadEndsChange={setHighlightDeadEnds}
+          showEdgeWeights={showEdgeWeights}
+          onShowEdgeWeightsChange={setShowEdgeWeights}
           onVerifyGraph={handleVerifyGraph}
           onClearGraph={() => mapViewerRef.current?.clearGraph?.()}
           onConnectOverlappingControls={() => mapViewerRef.current?.connectOverlappingControls?.() ?? 0}

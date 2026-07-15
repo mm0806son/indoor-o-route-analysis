@@ -7,6 +7,7 @@ import {
   Square,
   Target,
   Layers,
+  ListVideo,
 } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@indoor-o-route-analysis/ui";
@@ -105,6 +106,10 @@ export interface PlaybackControlsProps {
   onStopPlay: () => void;
   onPlaybackSpeedChange: (speed: number) => void;
   onFollowPlaybackChange: (follow: boolean) => void;
+  /** Whether playback auto-continues with the next leg when a leg finishes */
+  autoAdvance?: boolean;
+  /** Callback when auto-advance is toggled. Toggle is only shown when provided. */
+  onAutoAdvanceChange?: (autoAdvance: boolean) => void;
   /** Whether play button is disabled */
   disabled?: boolean;
   /** Estimated duration of the current playback in seconds */
@@ -138,6 +143,8 @@ export function PlaybackControls({
   onStopPlay,
   onPlaybackSpeedChange,
   onFollowPlaybackChange,
+  autoAdvance = false,
+  onAutoAdvanceChange,
   disabled = false,
   duration: _duration = 0,
   currentTime = 0,
@@ -247,6 +254,20 @@ export function PlaybackControls({
           <Target className={`h-4 w-4 transition-all ${followPlayback ? "opacity-100" : "opacity-30"}`} />
         </Button>
       </div>
+      {/* Auto-advance (continue with next leg) toggle */}
+      {onAutoAdvanceChange && (
+        <div className="pl-2 border-l border-border">
+          <Button
+            variant={autoAdvance ? "active" : "ghost"}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => onAutoAdvanceChange(!autoAdvance)}
+            title={autoAdvance ? "Disable continue with next leg" : "Enable continue with next leg"}
+          >
+            <ListVideo className={`h-4 w-4 transition-all ${autoAdvance ? "opacity-100" : "opacity-30"}`} />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -188,3 +188,72 @@ export function findDeadEndEdgeIds(edges: Edge[], nodeIds: string[]): Set<string
 
   return deadEndEdgeIds;
 }
+
+/**
+ * Count the number of one-way edges traversed in a path.
+ * One-way edges add difficulty as runners must recognize the constraint.
+ */
+export function countOneWayEdgesInPath(path: string[], findEdge: (from: string, to: string) => Edge | undefined): number {
+  let count = 0;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const edge = findEdge(path[i], path[i + 1]);
+    if (edge?.oneWay) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Count the number of ignoreLength edges (stairs) traversed in a path.
+ * These represent level changes in indoor orienteering.
+ */
+export function countIgnoreLengthEdgesInPath(path: string[], findEdge: (from: string, to: string) => Edge | undefined): number {
+  let count = 0;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const edge = findEdge(path[i], path[i + 1]);
+    if (edge?.ignoreLength) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Count alternative edges at junctions along a path.
+ * Counts edges that branch off from the chosen route at each node.
+ * Dead-end edges are excluded — they don't represent meaningful alternatives.
+ */
+export function countAlternativeEdgesInPath(
+  path: string[],
+  nodeEdges: Map<string, Edge[]>,
+  deadEndEdgeIds: Set<string>,
+): number {
+  let totalAlternativeEdges = 0;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const nodeId = path[i];
+    const nextNodeId = path[i + 1];
+    const incomingNodeId = i > 0 ? path[i - 1] : null;
+
+    // Count non-dead-end alternative outgoing edges (excluding path edge and incoming)
+    const alternatives = (nodeEdges.get(nodeId) || []).filter((e: Edge) => {
+      if (e.from !== nodeId) return false;
+      // Exclude the incoming direction
+      if (incomingNodeId && e.to === incomingNodeId) return false;
+      // Exclude the path edge (it's the route, not an alternative)
+      if (e.to === nextNodeId) return false;
+      // Exclude dead-end edges
+      if (deadEndEdgeIds.has(edgeKey(e))) return false;
+      return true;
+    });
+
+    totalAlternativeEdges += alternatives.length;
+  }
+
+  return totalAlternativeEdges;
+}

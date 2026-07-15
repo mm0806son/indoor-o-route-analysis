@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import MapViewer, { MapViewerState, MapViewerController, multiPagePixelsToEvent, eventPosToMultiPagePixels } from "@/components/map-viewer";
+import MapViewer, { type MapViewerState, type MapViewerController, multiPagePixelsToEvent, eventPosToMultiPagePixels } from "@/components/map-viewer";
 import { useAppData } from "@indoor-o-route-analysis/ui";
 import type { Polygon } from "@indoor-o-route-analysis/core";
 import type { MapData } from "@indoor-o-route-analysis/core";
@@ -181,6 +181,8 @@ const Model3DMapViewer = forwardRef<Model3DMapViewerHandle, Model3DMapViewerProp
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         return;
       }
+      // Don't hijack Alt/Cmd+arrow (browser back/forward) or other Ctrl/Cmd/Alt chords.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (e.key === "Enter" && isCreatingPolygon && currentPolygon.length >= 3) {
         // Finish creating polygon

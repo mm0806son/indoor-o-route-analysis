@@ -8,7 +8,7 @@ import { Checkbox } from "@indoor-o-route-analysis/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@indoor-o-route-analysis/ui";
 import { ControlRenderer } from "@indoor-o-route-analysis/ui";
 import { getEventTransform, getDocumentDimensions, type EventData, type RaceCourseData } from "@indoor-o-route-analysis/core";
-import { type MapData } from "@indoor-o-route-analysis/core";
+import type { MapData } from "@indoor-o-route-analysis/core";
 import { type MapViewerState, type MapViewerController, mapToPixels, eventPosToMultiPagePixels } from "@/components/map-viewer";
 import { calculateLatLonFromMapPoint } from "@indoor-o-route-analysis/core";
 import { calculateTransformFromControlPairs } from "@indoor-o-route-analysis/core";
@@ -405,6 +405,8 @@ export function MapPropertiesTab({
   useEffect(() => {
     if (!isControlRegMode || !selectedMark) return;
     const onKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack Alt/Cmd+arrow (browser back/forward) or Ctrl+arrow.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const step = e.shiftKey ? 0.1 : 1; // mm; Shift = fine
       let dx = 0;
       let dy = 0;

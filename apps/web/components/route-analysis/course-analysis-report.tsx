@@ -2,10 +2,10 @@
 
 import React, { useMemo } from "react";
 import { getDifficultyCategory, getCourseAverageDifficulty } from "@indoor-o-route-analysis/core";
-import { ScoringModel } from "@indoor-o-route-analysis/core";
+import type { ScoringModel } from "@indoor-o-route-analysis/core";
 import { DifficultyTag } from "./difficulty-tag";
 import type { Course, EventData } from "@indoor-o-route-analysis/core";
-import { Leg } from "@indoor-o-route-analysis/core";
+import type { Leg } from "@indoor-o-route-analysis/core";
 import { DIFFICULTY_CATEGORIES } from "@indoor-o-route-analysis/core";
 import { CHART_BACKGROUND_OPACITY } from "@indoor-o-route-analysis/core";
 

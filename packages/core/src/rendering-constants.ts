@@ -50,19 +50,33 @@ export const CONTRAST_FILTER = "drop-shadow(0 0 1px rgba(0,0,0,0.8))";
 
 // Route Analysis
 export const ROUTE_ANALYSIS_COLORS = [
-  "#FF0054", 
-  "#00F5D4", 
-  "#8338EC", 
-  "#3A86FF", 
-  "#FFBE0B", 
+  "#FF0054",
+  "#00F5D4",
+  "#8338EC",
+  "#3A86FF",
+  "#FFBE0B",
   "#06D6A0"
 ];
+/** The first ROUTE_ANALYSIS_COLORS entry, reused wherever a single "this is the route being played/shown" accent is needed outside route-analysis's own ranked palette (e.g. Route Builder's playback marker and 3D route view). */
+export const PRIMARY_ROUTE_COLOR = ROUTE_ANALYSIS_COLORS[0];
 
 // Labs
 export const LABS_ROUTE_COLOR = "#22c55e"; // Green for labs route visualization
+
+// Labs — Human Thinking overlay (see planning/08-human-route-viz-web.md)
+export const HUMAN_OVERLAY_TRACKING_COLOR = "#3b82f6"; // Blue: visited by the forward/tracking side
+export const HUMAN_OVERLAY_BACKTRACKING_COLOR = "#f59e0b"; // Amber: visited by the backward/backtracking side
+export const HUMAN_OVERLAY_BOTH_COLOR = COURSE_COLOR; // Purple: visited by both sides (pre-meeting overlap)
+export const HUMAN_OVERLAY_CURRENT_COLOR = SELECTED_COURSE_COLOR; // Brighter purple (selection color): the cluster being expanded right now
+export const HUMAN_OVERLAY_MEETING_COLOR = LABS_ROUTE_COLOR; // Green: an accepted meeting
+export const HUMAN_OVERLAY_REJECTED_COLOR = ERROR_COLOR; // Red: a rejected meeting attempt
+export const HUMAN_OVERLAY_DISCARDED_OPACITY = 0.35; // Dimming for candidate stairs not chosen this step
 
 // Route Builder
 export const ROUTE_BUILDER_LINE_COLOR = "#00ff00"; // Green used in polygon creation/previews as well
 export const ROUTE_PATH_COLOR = "#ff0000";
 export const ROUTE_WAYPOINT_COLOR = "#ff0000";
 export const ROUTE_WAYPOINT_RADIUS = 17;
+
+// Algorithm-visualization (VIZ_*) constants moved to viz-constants.ts, behind
+// the ./render subpath — they're only consumed by apps/route-viz-cli.

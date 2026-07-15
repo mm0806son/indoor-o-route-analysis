@@ -6,6 +6,8 @@ import { useAppData } from "@indoor-o-route-analysis/ui";
 import { getActiveMap } from "@indoor-o-route-analysis/core";
 import { usePdfUrl } from "@indoor-o-route-analysis/ui";
 import LabsPropertiesPanel from "./properties-panel";
+import type { HumanRouteOverlayState } from "./human-thinking/properties-panel";
+import type { ClusteredGraphState } from "./clustered-graph/properties-panel";
 
 // Dynamic import for MapViewer to avoid SSR issues with Leaflet/Canvas
 const LabsMapViewer = dynamic(() => import("./map-viewer"), {
@@ -18,7 +20,9 @@ export default function LabsPage() {
 
   // State to hold the route to display on the map
   // This is set when the user selects a row in the properties panel
-  const [displayedRoute, setDisplayedRoute] = useState<{ path: string[], distance?: number } | null>(null);
+  const [displayedRoute, setDisplayedRoute] = useState<{ path: string[], distance?: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null>(null);
+  const [humanRouteOverlay, setHumanRouteOverlay] = useState<HumanRouteOverlayState | null>(null);
+  const [clusteredGraph, setClusteredGraph] = useState<ClusteredGraphState | null>(null);
 
   // Visualization State
   const [showNodes, setShowNodes] = useState(false);
@@ -37,6 +41,8 @@ export default function LabsPage() {
             pdfUrl={pdfUrl}
             scale={activeMap?.scale ?? 1000}
             displayedRoute={displayedRoute}
+            humanRouteOverlay={humanRouteOverlay}
+            clusteredGraph={clusteredGraph}
             showNodes={showNodes}
             showEdges={showEdges}
             backgroundMode={backgroundMode}
@@ -45,8 +51,10 @@ export default function LabsPage() {
 
        {/* Properties Panel (Right) */}
        <div className="w-80 flex flex-col bg-card border-l border-border h-full shrink-0">
-         <LabsPropertiesPanel 
+         <LabsPropertiesPanel
             onRouteSelect={setDisplayedRoute}
+            onHumanRouteOverlayChange={setHumanRouteOverlay}
+            onClusteredGraphChange={setClusteredGraph}
             showNodes={showNodes}
             setShowNodes={setShowNodes}
             showEdges={showEdges}

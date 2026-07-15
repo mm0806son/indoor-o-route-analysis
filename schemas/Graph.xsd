@@ -113,7 +113,7 @@
       <xsd:element name="IgnoreLength" type="xsd:boolean" minOccurs="0" default="false">
         <xsd:annotation>
           <xsd:documentation>
-            If true, the geometric length of this edge is ignored (e.g. infinite speed or teleport).
+            If true, the geometric length of this edge is ignored (e.g. infinite speed or a map-segment transition).
           </xsd:documentation>
         </xsd:annotation>
       </xsd:element>

@@ -15,6 +15,26 @@ import { analyzeCourseLegs } from "@indoor-o-route-analysis/core";
 import { ScoringModelRegistry } from "@indoor-o-route-analysis/core";
 import type { EventData } from "@indoor-o-route-analysis/core";
 import { getActualCourseControls } from "@indoor-o-route-analysis/core";
+import {
+  buildHumanRouteLabelResolver,
+  traceToExplanation,
+  analyzeThinkingEffort,
+  getCoordinates,
+} from "@indoor-o-route-analysis/core";
+
+/**
+ * Only .json paths are accepted for load_event/resource reads — this tool
+ * only ever parses via parseEventFromJSON (no IOF XML support here, unlike
+ * analyse-cli's loader). Rejecting other extensions up front, before any
+ * read, narrows what would otherwise be an arbitrary-local-file-read
+ * surface (any path an MCP client passes as a tool argument) down to
+ * "files that look like they could be an event export."
+ */
+function assertJsonPath(filePath: string): void {
+  if (path.extname(filePath).toLowerCase() !== ".json") {
+    throw new Error(`Unsupported file format: expected a .json file, got "${filePath}"`);
+  }
+}
 
 // In-memory storage for the current event
 let currentEvent: EventData | null = null;
@@ -65,6 +85,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   }
 
   const filePath = uri.slice(7); // Remove "file://"
+
+  assertJsonPath(filePath);
 
   if (!fs.existsSync(filePath)) {
     throw new Error(`File not found: ${filePath}`);
@@ -181,6 +203,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "find_human_route",
+        description:
+          "Simulate how a runner would plan the route between two controls step by step (rather than the true shortest path), with narration of the search and cognitive-effort metrics (mental steps, plan depth, a combined effort score, and the route-length gap vs. the true shortest route). Useful for spotting legs that look easy on paper but are hard to plan through, or 'bait' legs where the shortest route isn't the one a runner would actually find.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            from_control: {
+              type: "string",
+              description: "Control code to start from (e.g., '31', 'S1')",
+            },
+            to_control: {
+              type: "string",
+              description: "Control code to navigate to (e.g., '42', 'F1')",
+            },
+          },
+          required: ["from_control", "to_control"],
+        },
+      },
+      {
         name: "analyze_course_difficulty",
         description:
           "Analyze the difficulty of an entire course, providing leg-by-leg breakdown and total difficulty score.",
@@ -214,6 +255,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case "load_event": {
         const filePath = (args as any).file_path;
+
+        assertJsonPath(filePath);
 
         if (!fs.existsSync(filePath)) {
           return {
@@ -513,6 +556,105 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: `Routes from ${fromControlCode} to ${toControlCode}:${routeDescriptions.join("\n")}`,
             },
           ],
+        };
+      }
+
+      case "find_human_route": {
+        if (!currentEvent) {
+          return {
+            content: [
+              { type: "text", text: "❌ No event loaded. Use load_event tool first." },
+            ],
+          };
+        }
+
+        const fromControlCode = (args as any).from_control;
+        const toControlCode = (args as any).to_control;
+
+        const raceCourse = currentEvent.raceCourses?.[0];
+        const controls = raceCourse?.controls || [];
+        const nodes = raceCourse?.vertices || [];
+        const edges = raceCourse?.edges || [];
+        const polygons = raceCourse?.polygons || [];
+        const mapScale = raceCourse?.maps?.[0]?.scale || 1000;
+
+        const fromControl = controls.find((c) => c.id === fromControlCode);
+        const toControl = controls.find((c) => c.id === toControlCode);
+
+        if (!fromControl) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Control not found: ${fromControlCode}\nAvailable controls: ${controls.map((c) => c.id).join(", ")}`,
+              },
+            ],
+          };
+        }
+
+        if (!toControl) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Control not found: ${toControlCode}\nAvailable controls: ${controls.map((c) => c.id).join(", ")}`,
+              },
+            ],
+          };
+        }
+
+        const scoringModel = ScoringModelRegistry.getDefaultModel();
+        const analyzer = new RouteAnalyzer(controls, nodes, edges, mapScale, scoringModel, polygons);
+
+        const humanResult = analyzer.findHumanRouteWithTrace(fromControl.id, toControl.id);
+        if (!humanResult) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ No human route found between ${fromControlCode} and ${toControlCode}. The human-route model is tuned for course-leg-scale distances, not arbitrary long-distance queries — try analyze_shortest_route instead for those.`,
+              },
+            ],
+          };
+        }
+
+        const fromNodeId = analyzer.getNodeIdForControl(fromControl.id);
+        const toNodeId = analyzer.getNodeIdForControl(toControl.id);
+        const resolver =
+          fromNodeId && toNodeId
+            ? buildHumanRouteLabelResolver({
+                clusterOf: humanResult.clusterOf ?? {},
+                fromNodeId,
+                fromLabel: fromControlCode,
+                toNodeId,
+                toLabel: toControlCode,
+                resolveNode: (id) => controls.find((c) => c.id === id) ?? nodes.find((n) => n.id === id) ?? null,
+                getCoordinates,
+                polygons,
+              })
+            : undefined;
+
+        const shortestDistance = analyzer.calculateRouteDistance(fromControl, toControl);
+        const effort = analyzeThinkingEffort(humanResult, Number.isFinite(shortestDistance) ? shortestDistance : undefined);
+        const narration = traceToExplanation(humanResult, resolver).map((m) => m.text);
+        const route = humanResult.route;
+        const diffCategory = scoringModel.getDifficultyCategory(route.difficulty);
+
+        const summary =
+          `Human route from ${fromControlCode} to ${toControlCode}:\n` +
+          `${route.description}\n` +
+          `Distance: ${route.distance.toFixed(1)}m\n` +
+          `Difficulty: ${route.difficulty.toFixed(2)} (${diffCategory.label})\n` +
+          `Same floor: ${humanResult.sameFloor}\n\n` +
+          `Narration:\n${narration.map((line) => `  ${line}`).join("\n")}\n\n` +
+          `Cognitive effort:\n` +
+          `  Mental steps: ${effort.mentalSteps}\n` +
+          `  Plan depth: ${effort.planDepth}\n` +
+          `  Cognitive effort score: ${effort.cognitiveEffortScore.toFixed(2)}\n` +
+          (effort.humanOptimalGap !== undefined ? `  Human/optimal gap: ${effort.humanOptimalGap.toFixed(2)}` : "");
+
+        return {
+          content: [{ type: "text", text: summary }],
         };
       }
 

@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { X, Loader2, StopCircle } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@indoor-o-route-analysis/ui";
 import { RouteAnalyzer, getCourseDifficulty, getDifficultyCategory } from "@indoor-o-route-analysis/core";
 import { getCourseControlLabels, getActualCourseControls } from "@indoor-o-route-analysis/core";
 import { DifficultyTag } from "./difficulty-tag";
+import { ScoringModelSelect, escapeHtml, safeHttpUrl } from "@/components/shared";
 import { DIFFICULTY_CATEGORIES } from "@indoor-o-route-analysis/core";
-import { Leg } from "@indoor-o-route-analysis/core";
+import type { Leg } from "@indoor-o-route-analysis/core";
 import type { ScoringModel } from "@indoor-o-route-analysis/core";
 import { ScoringModelRegistry } from "@indoor-o-route-analysis/core";
 import type { EventData, Course, Control, ClassCourseAssignment } from "@indoor-o-route-analysis/core";
@@ -55,9 +55,6 @@ export default function AllCoursesAnalysisDialog({
   const [progress, setProgress] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const cancelledRef = useRef(false);
-
-  // Get available scoring models
-  const availableScoringModels = useMemo(() => ScoringModelRegistry.getAllModels(), []);
 
   // Scoring model state
   const [scoringModelId, setScoringModelId] = useState<string>(
@@ -309,8 +306,9 @@ export default function AllCoursesAnalysisDialog({
   };
 
   const exportHtml = () => {
-    const eventNameDisplay = event?.name || "Event";
-    const eventUrl = event?.eventUrl;
+    const eventNameRaw = event?.name || "Event";
+    const eventNameDisplay = escapeHtml(eventNameRaw);
+    const eventUrl = safeHttpUrl(event?.eventUrl);
 
     const getEventDate = () => {
         if (event?.startTime?.date) return typeof event.startTime.date === 'string' ? event.startTime.date.split('T')[0] : new Date(event.startTime.date).toISOString().split('T')[0];
@@ -350,7 +348,7 @@ export default function AllCoursesAnalysisDialog({
 </head>
 <body>
   <h1>${eventNameDisplay}</h1>
-  ${eventUrl ? `<div class="event-link"><a href="${eventUrl}" target="_blank">${eventUrl}</a></div>` : ''}
+  ${eventUrl ? `<div class="event-link"><a href="${escapeHtml(eventUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(eventUrl)}</a></div>` : ''}
   <div class="meta">
     <strong>Date:</strong> ${eventDateStr}<br>
     ${scoringModelInfo}<br>
@@ -379,7 +377,7 @@ export default function AllCoursesAnalysisDialog({
         
         let mostDiffLegContent = "-";
         if (r.mostDifficultLeg) {
-             mostDiffLegContent = `<span>${r.mostDifficultLeg.label}</span>`;
+             mostDiffLegContent = `<span>${escapeHtml(r.mostDifficultLeg.label)}</span>`;
         }
 
         const cat = r.targetDifficulty ? DIFFICULTY_CATEGORIES.find(c => c.label.toLowerCase() === r.targetDifficulty) : undefined;
@@ -388,9 +386,9 @@ export default function AllCoursesAnalysisDialog({
           : "—";
 
         return `<tr>
-          <td>${r.courseName}</td>
+          <td>${escapeHtml(r.courseName)}</td>
           <td>${categoryHtml}</td>
-          <td>${r.assignedClasses || "—"}</td>
+          <td>${escapeHtml(r.assignedClasses || "—")}</td>
           <td>${r.length.toFixed(0)} m</td>
           <td>${(r.totalClimb || 0).toFixed(0)} m</td>
           <td>${timeStr}</td>
@@ -407,7 +405,7 @@ export default function AllCoursesAnalysisDialog({
 </html>`;
 
     const sanitizeNamePart = (value: string) => value.replace(/[\\/:*?"<>|]+/g, "-").trim();
-    const eventFilenamePart = sanitizeNamePart(eventNameDisplay);
+    const eventFilenamePart = sanitizeNamePart(eventNameRaw);
     const filename = `${eventDateStr} ${eventFilenamePart} - course analysis summary.html`;
 
     const blob = new Blob([html], { type: "text/html" });
@@ -437,44 +435,23 @@ export default function AllCoursesAnalysisDialog({
         <div className="px-4 py-3 border-b border-border bg-muted/30 flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2">
             <label className="text-xs text-muted-foreground whitespace-nowrap">Scoring Model:</label>
-            <Select
+            <ScoringModelSelect
               value={scoringModelId}
-              onValueChange={(value) => setScoringModelId(value)}
+              onValueChange={setScoringModelId}
               disabled={isAnalyzing}
-            >
-              <SelectTrigger className="w-[180px] h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {availableScoringModels.map((model) => (
-                  <SelectItem key={model.getFullId()} value={model.getFullId()} className="text-xs">
-                    {model.name} v{model.version}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              className="w-[180px] h-8 text-xs"
+            />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-muted-foreground whitespace-nowrap">Compare with:</label>
-            <Select
+            <ScoringModelSelect
               value={secondScoringModelId || "none"}
               onValueChange={(value) => setSecondScoringModelId(value === "none" ? null : value)}
               disabled={isAnalyzing}
-            >
-              <SelectTrigger className="w-[180px] h-8 text-xs">
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none" className="text-xs">None</SelectItem>
-                {availableScoringModels
-                  .filter((model) => model.getFullId() !== scoringModelId)
-                  .map((model) => (
-                    <SelectItem key={model.getFullId()} value={model.getFullId()} className="text-xs">
-                      {model.name} v{model.version}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+              className="w-[180px] h-8 text-xs"
+              extraOption={{ value: "none", label: "None" }}
+              excludeIds={[scoringModelId]}
+            />
           </div>
         </div>
 

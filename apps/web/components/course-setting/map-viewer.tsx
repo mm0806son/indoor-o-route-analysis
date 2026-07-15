@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import dynamic from "next/dynamic";
 import { useAppData } from "@indoor-o-route-analysis/ui";
-import { ControlRenderer } from "@indoor-o-route-analysis/ui";
+import { ControlRenderer, renderLegConnections } from "@indoor-o-route-analysis/ui";
 import { getCourseControlLabelMap } from "@indoor-o-route-analysis/core";
 import { type MapViewerState, type MapViewerController, mapToEvent, eventPosToMultiPagePixels } from "@/components/map-viewer";
 import { CONTROL_RADIUS } from "@indoor-o-route-analysis/core";
@@ -283,6 +283,8 @@ const CourseSettingMapViewer = forwardRef<CourseSettingMapViewerHandle, CourseSe
         return tag === "INPUT" || tag === "TEXTAREA" || editable === "true";
       };
       if (isFormElement(event.target)) return;
+      // Don't hijack Alt/Cmd+arrow (browser back/forward) or Ctrl+arrow.
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
 
       if (!selectedControlId || !onMoveControl) return;
 
@@ -354,27 +356,6 @@ const CourseSettingMapViewer = forwardRef<CourseSettingMapViewerHandle, CourseSe
     .filter(Boolean) as typeof controls;
   const controlLabelMap = getCourseControlLabelMap(currentCourse?.controls ?? [], controls);
 
-  const getLineCoordinates = (from: Control & { x: number; y: number }, to: Control & { x: number; y: number }) => {
-    // Coordinate priority: Explicit x/y (pixels in this context) -> mapPosition (mm) -> legacy x/y
-    const fromX = from.x;
-    const fromY = from.y;
-    const toX = to.x;
-    const toY = to.y;
-
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const distance = Math.hypot(dx, dy);
-    if (distance === 0) return { x1: fromX, y1: fromY, x2: toX, y2: toY };
-
-    const angle = Math.atan2(dy, dx);
-    return {
-      x1: fromX + ControlRenderer.CONTROL_RADIUS * Math.cos(angle),
-      y1: fromY + ControlRenderer.CONTROL_RADIUS * Math.sin(angle),
-      x2: toX - ControlRenderer.CONTROL_RADIUS * Math.cos(angle),
-      y2: toY - ControlRenderer.CONTROL_RADIUS * Math.sin(angle),
-    };
-  };
-
   const mapUrl =
     map?.image?.url && (map.image.url.startsWith("http") || map.image.url.startsWith("https"))
       ? map.image.url
@@ -429,23 +410,7 @@ const CourseSettingMapViewer = forwardRef<CourseSettingMapViewerHandle, CourseSe
 
               return (
                 <>
-                  {courseControlsPx.length > 1 &&
-                    courseControlsPx.map((control, idx) => {
-                      if (idx === courseControlsPx.length - 1) return null;
-                      const nextControl = courseControlsPx[idx + 1];
-                      const coords = getLineCoordinates(control, nextControl);
-                      return (
-                        <line
-                          key={`line-${control.id}-${nextControl.id}`}
-                          x1={coords.x1}
-                          y1={coords.y1}
-                          x2={coords.x2}
-                          y2={coords.y2}
-                          stroke="#8b5cf6"
-                          strokeWidth="2"
-                        />
-                      );
-                    })}
+                  {renderLegConnections({ controls: courseControlsPx })}
 
                   {controlsPx.map((control) => {
                     const isSelected = selectedControlId === control.id;

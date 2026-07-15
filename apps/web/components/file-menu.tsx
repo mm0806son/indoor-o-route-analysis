@@ -12,7 +12,7 @@ import type { EventData, RaceCourseData } from "@indoor-o-route-analysis/core";
 import { parseEventFromIOFXML, exportEventToIOFXML } from "@indoor-o-route-analysis/core";
 import { serializeEventToJSON } from "@indoor-o-route-analysis/core";
 import { processImportedJSON } from "@indoor-o-route-analysis/core";
-import { openJsonFilePicker } from "@/lib/file-picker";
+import { openJsonFilePicker, saveJsonToFile } from "@/lib/file-picker";
 import { NO, SE, FI, DK, GB, US, FR, CH, IT, ES, CZ } from 'country-flag-icons/react/3x2';
 
 type FileMenuProps = {
@@ -397,33 +397,22 @@ export default function FileMenu({ onNavigate, activeScreen: _activeScreen }: Fi
     if (!selectedEvent) return;
 
     const jsonString = await buildEventJSON(selectedEvent, currentPdfData);
+    const suggestedName = getSuggestedFilename();
 
     try {
-      // Web: File System Access API
-      let handle = fileHandle;
-      if (!handle) {
-        const suggestedName = getSuggestedFilename();
+      // File System Access API where available, browser download fallback otherwise (Firefox/Safari).
+      const { handle, saved } = await saveJsonToFile(jsonString, suggestedName, fileHandle);
+      if (!saved) return;
 
-        // @ts-expect-error -- File System Access API
-        handle = await window.showSaveFilePicker({
-          suggestedName,
-          types: [{ description: "JSON File", accept: { "application/json": [".json"] } }],
-        });
+      if (handle) setFileHandle(handle);
+      await saveCurrentEvent();
+
+      const savedName = handle?.name ?? suggestedName;
+      if (savedName && eventFilenames[selectedEvent.id] !== savedName) {
+        await setEventFilename(selectedEvent.id, savedName);
       }
 
-      if (handle) {
-        const writable = await handle.createWritable();
-        await writable.write(jsonString);
-        await writable.close();
-        setFileHandle(handle);
-        await saveCurrentEvent();
-
-        if (handle.name && eventFilenames[selectedEvent.id] !== handle.name) {
-          await setEventFilename(selectedEvent.id, handle.name);
-        }
-
-        markAsSaved();
-      }
+      markAsSaved();
     } catch (e) {
       const err = e as Error;
       if (err.name !== "AbortError") {
@@ -438,30 +427,22 @@ export default function FileMenu({ onNavigate, activeScreen: _activeScreen }: Fi
     if (!selectedEvent) return;
 
     const jsonString = await buildEventJSON(selectedEvent, currentPdfData);
+    const suggestedName = getSuggestedFilename();
 
     try {
-      // Web: File System Access API
-      const suggestedName = getSuggestedFilename();
+      // "Save As" always prompts for a new location — pass no existing handle.
+      const { handle, saved } = await saveJsonToFile(jsonString, suggestedName, null);
+      if (!saved) return;
 
-      // @ts-expect-error -- File System Access API
-      const handle = await window.showSaveFilePicker({
-        suggestedName,
-        types: [{ description: "JSON File", accept: { "application/json": [".json"] } }],
-      });
+      if (handle) setFileHandle(handle);
+      await saveCurrentEvent();
 
-      if (handle) {
-        const writable = await handle.createWritable();
-        await writable.write(jsonString);
-        await writable.close();
-        setFileHandle(handle);
-        await saveCurrentEvent();
-
-        if (handle.name && eventFilenames[selectedEvent.id] !== handle.name) {
-          await setEventFilename(selectedEvent.id, handle.name);
-        }
-
-        markAsSaved();
+      const savedName = handle?.name ?? suggestedName;
+      if (savedName && eventFilenames[selectedEvent.id] !== savedName) {
+        await setEventFilename(selectedEvent.id, savedName);
       }
+
+      markAsSaved();
     } catch (e) {
       const err = e as Error;
       if (err.name !== "AbortError") {
@@ -856,7 +837,7 @@ Class assignments: ${parsedClassAssignments.length}`);
       <ConfirmDialog
         isOpen={showUnsavedDialog}
         title={selectedEvent ? selectedEvent.name : "Unsaved Changes"}
-        message={`You have unsaved changes${fileHandle ? ` in "${fileHandle.name || fileHandle.path || ''}"` : ""}. Do you want to save them?`}
+        message={`You have unsaved changes${fileHandle ? ` in "${fileHandle.name}"` : ""}. Do you want to save them?`}
         onConfirm={handleConfirmUnsaved}
         onCancel={() => setShowUnsavedDialog(false)}
         onDiscard={handleDiscardUnsaved}

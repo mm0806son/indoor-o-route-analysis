@@ -1,14 +1,15 @@
 "use client";
 
-import React, { forwardRef, useImperativeHandle, useRef, useMemo } from "react";
-import MapViewer, { MapViewerState, MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
+import type React from "react";
+import { forwardRef, useImperativeHandle, useRef, useMemo } from "react";
+import MapViewer, { type MapViewerState, type MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
 import { useAppData } from "@indoor-o-route-analysis/ui";
-import { exportCanvasAndSvgAsImage, exportCanvasAndSvgAsPdf } from "@indoor-o-route-analysis/core";
+import { exportCanvasAndSvgAsImage, exportCanvasAndSvgAsPdf } from "@indoor-o-route-analysis/core/export";
 import type { Edge } from "@indoor-o-route-analysis/core";
 import type { Node } from "@indoor-o-route-analysis/core";
 import type { Control } from "@indoor-o-route-analysis/core";
 import type { MapData } from "@indoor-o-route-analysis/core";
-import { EdgeTraffic, NodeTraffic } from "./analysis-logic";
+import type { EdgeTraffic, NodeTraffic } from "./analysis-logic";
 import { edgeKey } from "@indoor-o-route-analysis/core";
 
 interface EventAnalysisMapViewerProps {
@@ -111,7 +112,9 @@ export default forwardRef(function EventAnalysisMapViewer(
   const maxNodeTraffic = useMemo(() => {
     if (metricMode === "collision") return 0; // Dont show nodes in collision mode
     let max = 0;
-    nodeTraffic.forEach((v) => (max = Math.max(max, v.count)));
+    nodeTraffic.forEach((v) => {
+      max = Math.max(max, v.count);
+    });
     return max;
   }, [nodeTraffic, metricMode]);
 
@@ -132,7 +135,7 @@ export default forwardRef(function EventAnalysisMapViewer(
     // Render Edges
     if (showEdges) {
       edges.forEach((edge: Edge) => {
-        if (edge.ignoreLength) return; // Hide teleport edges
+        if (edge.ignoreLength) return; // Hide map-segment transition edges
 
         const traffic = edgeTraffic.get(edgeKey(edge));
         const value = traffic ? (metricMode === "total" ? traffic.total : traffic.collision) : 0;

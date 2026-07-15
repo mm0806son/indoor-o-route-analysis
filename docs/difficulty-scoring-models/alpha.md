@@ -1,9 +1,5 @@
 # Alpha Scoring Model
 
-Version: 0.1  
-ID: `alpha`  
-Name: `Alpha`
-
 ## Overview
 
 The Alpha model is a simple additive indoor-orienteering difficulty model.
@@ -34,7 +30,7 @@ Where:
 Scaled difficulty used by the implementation:
 
 $$
-D = D_{raw} \cdot s, \quad s = \frac{100}{102}
+D = D_{raw} \cdot s, \quad s = \frac{100}{81}
 $$
 
 ## Feature Definitions
@@ -69,8 +65,9 @@ Implementation behavior details:
 
 - The loop checks route indices `0..path.length-2`, so the final path node is
 	not evaluated as a branching point.
-- Edge direction and one-way accessibility are ignored for branching count; raw
-	incidence count is used.
+- Branching count respects one-way accessibility: only edges that are actually
+	reachable as a next step (excluding backtracking to the incoming node) are
+	counted, not raw incidence.
 
 ## Difficulty Categories
 
@@ -86,7 +83,7 @@ The model maps to Stockholm Indoor Cup style bands:
 
 The implementation includes this reference route for scaling context:
 
-- Stockholm Indoor Cup 2023 Etapp 1, Bana 1, leg 15 -> 16
+- Stockholm Indoor Cup 2023 Etapp 1, Bana 1, leg 3 -> 4
 
 ## Scope and Limitations
 
@@ -100,8 +97,6 @@ Not included:
 - Corridor length, pace, or physical distance
 - Visibility / line-of-sight complexity
 - Turn-angle penalties
-- One-way traversal legality in branching complexity
-- Dynamic crowding or race context
 
 Additional limitations:
 

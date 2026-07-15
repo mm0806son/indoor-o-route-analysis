@@ -1,22 +1,23 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useEffect, memo, forwardRef, useImperativeHandle, useState } from "react";
+import type React from "react";
+import { useCallback, useMemo, useRef, useEffect, memo, forwardRef, useImperativeHandle, useState } from "react";
 import { jsPDF } from "jspdf";
-import MapViewer, { MapViewerState, MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
+import MapViewer, { type MapViewerState, type MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
 import { useAppData } from "@indoor-o-route-analysis/ui";
-import { ControlRenderer } from "@indoor-o-route-analysis/ui";
-import { exportCanvasAndSvgAsImage, exportCanvasAndSvgAsPdf } from "@indoor-o-route-analysis/core";
+import { ControlRenderer, renderLegConnections, renderHaloFilterDefs, HALO_FILTER_IDS, buildRoutePathSegments } from "@indoor-o-route-analysis/ui";
+import { exportCanvasAndSvgAsImage, exportCanvasAndSvgAsPdf } from "@indoor-o-route-analysis/core/export";
 import { ExportNaming } from "@indoor-o-route-analysis/core";
 import type { Edge, Node } from "@indoor-o-route-analysis/core";
-import { edgeKey } from "@indoor-o-route-analysis/core";
 import type { Control, CourseControl } from "@indoor-o-route-analysis/core";
 import { RouteAnalyzer, type RouteInfo } from "@indoor-o-route-analysis/core";
 import { getActiveMap } from "@indoor-o-route-analysis/core";
 import type { MapData } from "@indoor-o-route-analysis/core";
-import type { VideoExportSettings } from "./video-export-dialog";
-import { VideoExporter, type VideoExportContext } from "@indoor-o-route-analysis/core";
+import type { VideoExportSettings } from "@/components/shared/video-export-dialog";
+import { VideoExporter, type VideoExportContext } from "@indoor-o-route-analysis/core/export";
 import { MM_TO_METERS, ROUTE_ANALYSIS_COLORS } from "@indoor-o-route-analysis/core";
 import { getActualCourseControls, getCourseControlLabels, getCourseControlLabelMap } from "@indoor-o-route-analysis/core";
+import { GraphOverlay } from "@/components/shared";
 
 // Interface for what we display
 interface DisplayedRoute {
@@ -25,6 +26,7 @@ interface DisplayedRoute {
     color: string;
     isValid: boolean;
     decisionPointNodeIds?: string[];
+    branchingPointNodeIds?: string[];
     floorValidation: {
         isValid: boolean;
         calculatedFloor: number;
@@ -44,6 +46,7 @@ interface RouteAnalysisMapViewerProps {
   backgroundOpacity?: number;
   showEdges: boolean;
   showDecisionPoints: boolean;
+  showBranchingPoints: boolean;
   isPlaying: boolean;
   playReset: number;
   followPlayback: boolean;
@@ -250,21 +253,6 @@ function _getContrastColor(hexColor: string): string {
   return brightness > 128 ? "#000000" : "#FFFFFF";
 }
 
-const getLineCoordinates = (from: Control & { x: number; y: number }, to: Control & { x: number; y: number }) => {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const distance = Math.hypot(dx, dy);
-  if (distance === 0) return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
-
-  const angle = Math.atan2(dy, dx);
-  return {
-    x1: from.x + ControlRenderer.CONTROL_RADIUS * Math.cos(angle),
-    y1: from.y + ControlRenderer.CONTROL_RADIUS * Math.sin(angle),
-    x2: to.x - ControlRenderer.CONTROL_RADIUS * Math.cos(angle),
-    y2: to.y - ControlRenderer.CONTROL_RADIUS * Math.sin(angle),
-  };
-};
-
 interface MapEffectsProps {
   controllerRef: React.MutableRefObject<MapViewerController | null> | { current: MapViewerController | null };
   playPosRef: React.MutableRefObject<{ x: number; y: number } | null>;
@@ -367,6 +355,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
       backgroundOpacity = 1,
       showEdges,
       showDecisionPoints,
+      showBranchingPoints,
       isPlaying,
       playReset,
       followPlayback,
@@ -586,7 +575,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
             for (let cIdx = 0; cIdx < courseControlsPx.length - 1; cIdx++) {
               const c1 = courseControlsPx[cIdx];
               const c2 = courseControlsPx[cIdx + 1];
-              const coords = getLineCoordinates(c1, c2);
+              const coords = ControlRenderer.getLegCoordinates(c1, c2);
               const isCurrent = cIdx === i;
               const color = "#8b5cf6";
               const width = isCurrent ? 4 : 2;
@@ -642,39 +631,21 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
           // 3. Best Route
           if (bestRoute && bestRoute.path.length > 0) {
             const routeColor = ROUTE_COLORS[0];
-            const polylineSegments: { points: { x: number; y: number }[]; isIgnoreLength: boolean }[] = [];
-            let currentSegment: { x: number; y: number }[] = [];
+            const polylineSegments = buildRoutePathSegments(
+              bestRoute.path,
+              (id) => findNodePx(id),
+              (fromId, toId) =>
+                !!edges.find(
+                  (e) => (e.from === fromId && e.to === toId) || (!e.oneWay && e.from === toId && e.to === fromId),
+                )?.ignoreLength,
+            );
 
-            for (let j = 0; j < bestRoute.path.length - 1; j++) {
-              const n1 = findNodePx(bestRoute.path[j]);
-              const n2 = findNodePx(bestRoute.path[j + 1]);
-              if (!n1 || !n2) continue;
-
-              // Check edges for teleport
-              const edge = edges.find(
-                (e) =>
-                  (e.from === bestRoute.path[j] && e.to === bestRoute.path[j + 1]) ||
-                  (!e.oneWay && e.from === bestRoute.path[j + 1] && e.to === bestRoute.path[j]),
-              );
-
-              if (currentSegment.length === 0) currentSegment.push(n1);
-
-              if (edge?.ignoreLength) {
-                if (currentSegment.length > 1) polylineSegments.push({ points: currentSegment, isIgnoreLength: false });
-                currentSegment = [n1, n2];
-                polylineSegments.push({ points: currentSegment, isIgnoreLength: true });
-                currentSegment = [n2]; // start new
-              } else {
-                currentSegment.push(n2);
-              }
-            }
-            if (currentSegment.length > 1) polylineSegments.push({ points: currentSegment, isIgnoreLength: false });
-
-            polylineSegments.forEach((seg) => {
-              if (seg.isIgnoreLength) return;
-              const pts = seg.points.map((p) => `${p.x},${p.y}`).join(" ");
-              svgContent += `<polyline points="${pts}" stroke="${routeColor}" stroke-width="4" opacity="0.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />`;
-            });
+            polylineSegments
+              .filter((seg) => !seg.isMapSegmentTransition && seg.points.length >= 2)
+              .forEach((seg) => {
+                const pts = seg.points.map((p) => `${p.x},${p.y}`).join(" ");
+                svgContent += `<polyline points="${pts}" stroke="${routeColor}" stroke-width="4" opacity="0.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />`;
+              });
           }
 
           svgContent += `</svg>`;
@@ -841,7 +812,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
     const lastSelectionRef = useRef<string | null>(null);
     const [, forceRender] = useState(0);
     const playbackCanvasRef = useRef<HTMLCanvasElement>(null);
-    type CachedGeoSegment = { points: Array<{ x: number; y: number }>; isTeleport: boolean };
+    type CachedGeoSegment = { points: Array<{ x: number; y: number }>; isMapSegmentTransition: boolean };
     type CachedRouteGeo = { color: string; segments: CachedGeoSegment[]; totalLength: number; strokeWidth: number };
     const cachedGeometryRef = useRef<CachedRouteGeo[]>([]);
     const pixelsPerMeterRef = useRef<number>(0);
@@ -895,16 +866,16 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
         if (isComplete) {
           // Draw all segments
           for (const seg of geo.segments) {
-            if (seg.isTeleport || seg.points.length < 2) continue;
+            if (seg.isMapSegmentTransition || seg.points.length < 2) continue;
             ctx.beginPath();
             ctx.moveTo(seg.points[0].x, seg.points[0].y);
             for (let i = 1; i < seg.points.length; i++) ctx.lineTo(seg.points[i].x, seg.points[i].y);
             ctx.stroke();
           }
-          // Runner at end of last non-teleport segment
+          // Runner at end of last non-map-segment-transition segment
           for (let sIdx = geo.segments.length - 1; sIdx >= 0; sIdx--) {
             const seg = geo.segments[sIdx];
-            if (!seg.isTeleport && seg.points.length > 0) {
+            if (!seg.isMapSegmentTransition && seg.points.length > 0) {
               runnerPos = seg.points[seg.points.length - 1];
               break;
             }
@@ -913,7 +884,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
           let done = false;
           for (const seg of geo.segments) {
             if (done || remaining <= 0) break;
-            if (seg.isTeleport || seg.points.length < 2) continue;
+            if (seg.isMapSegmentTransition || seg.points.length < 2) continue;
             ctx.beginPath();
             ctx.moveTo(seg.points[0].x, seg.points[0].y);
             for (let i = 0; i < seg.points.length - 1; i++) {
@@ -1127,6 +1098,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
           color: ROUTE_COLORS[index % ROUTE_COLORS.length],
           isValid: true,
           decisionPointNodeIds: routeInfo.decisionPointNodeIds,
+          branchingPointNodeIds: routeInfo.branchingPointNodeIds,
           floorValidation: {
             isValid: true,
             calculatedFloor: endLevel,
@@ -1254,78 +1226,26 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
           style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
         >
           <defs>
-            <filter id="white-halo-route" x="-200%" y="-200%" width="500%" height="500%">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur1" />
-              <feFlood floodColor="white" floodOpacity="1" result="flood1">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur1" operator="in" result="halo1" />
-              <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur2" />
-              <feFlood floodColor="white" floodOpacity="1" result="flood2">
-                <animate attributeName="floodOpacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite" />
-              </feFlood>
-              <feComposite in2="blur2" operator="in" result="halo2" />
-              <feMerge>
-                <feMergeNode in="halo1" />
-                <feMergeNode in="halo2" />
-                <feMergeNode in="halo1" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+            {renderHaloFilterDefs([HALO_FILTER_IDS.whiteRoute])}
           </defs>
 
           {includeWhiteBackground && (
             <rect x={0} y={0} width={state.pdfDimensions.width} height={state.pdfDimensions.height} fill="white" />
           )}
 
-          {showEdges &&
-            edges
-              .filter((edge: Edge) => !edge.ignoreLength)
-              .map((edge: Edge) => {
-              const fromNode = findNodePx(edge.from);
-              const toNode = findNodePx(edge.to);
+          <GraphOverlay
+            edges={edges}
+            nodes={Array.from(nodePxMap.values()).map(n => ({ id: n.id, x: n.x, y: n.y }))}
+            controls={Array.from(controlPxMap.values()).map(c => ({ id: c.id, x: c.x, y: c.y }))}
+            showEdges={showEdges}
+            showNodes={showEdges}
+          />
 
-              if (!fromNode || !toNode) return null;
-
-              return (
-                <line
-                  key={`edge-${edgeKey(edge)}`}
-                  x1={fromNode.x}
-                  y1={fromNode.y}
-                  x2={toNode.x}
-                  y2={toNode.y}
-                  stroke="#999999"
-                  strokeWidth="2"
-                  opacity="0.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              );
-            })}
-
-          {courseControlsPx.length > 1 &&
-            courseControlsPx.map((control, idx) => {
-              if (idx === courseControlsPx.length - 1) return null;
-              if (highlightedLegIndex !== null && idx !== highlightedLegIndex) return null;
-
-              const nextControl = courseControlsPx[idx + 1];
-              const coords = getLineCoordinates(control, nextControl);
-              const isHighlighted = highlightedLegIndex !== null && idx === highlightedLegIndex;
-
-              return (
-                <line
-                  key={`line-${control.id}-${nextControl.id}`}
-                  x1={coords.x1}
-                  y1={coords.y1}
-                  x2={coords.x2}
-                  y2={coords.y2}
-                  stroke="#8b5cf6"
-                  strokeWidth={isHighlighted ? 4 : 2}
-                  filter={isHighlighted ? "url(#white-halo-route)" : undefined}
-                  strokeLinecap="round"
-                />
-              );
-            })}
+          {courseControlsPx.length > 1 && renderLegConnections({
+            controls: courseControlsPx,
+            highlightedLegIndex,
+            highlightFilter: "url(#white-halo-route)",
+          })}
 
           {Array.from(controlPxMap.values())
             .filter((control) => {
@@ -1354,7 +1274,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
             const lineThickness = strokeWidth / 2;
             const arrowSize = routeIndex === 0 ? 2.2 : 2.0;
             const lineOpacity = 1;
-            const _teleportOpacity = 0.35;
+            const _mapSegmentTransitionOpacity = 0.35;
 
             // Create lighter version of route color for arrows
             const lightenColor = (hex: string): string => {
@@ -1370,8 +1290,8 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
             };
             const arrowColor = lightenColor(route.color);
 
-            // Build polyline segments (non-teleport) and teleport segments separately
-            const polylineSegments: Array<{ points: Array<{ x: number; y: number }>; isTeleport: boolean }> = [];
+            // Build polyline segments (non-transition) and map-segment-transition segments separately
+            const polylineSegments: Array<{ points: Array<{ x: number; y: number }>; isMapSegmentTransition: boolean }> = [];
             let currentSegment: Array<{ x: number; y: number }> = [];
             let currentIsIgnoreLength = false;
 
@@ -1392,7 +1312,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
                 const isIgnoreLength = edge?.ignoreLength || false;
 
                 if (isIgnoreLength !== currentIsIgnoreLength && currentSegment.length > 0) {
-                  polylineSegments.push({ points: [...currentSegment], isTeleport: currentIsIgnoreLength });
+                  polylineSegments.push({ points: [...currentSegment], isMapSegmentTransition: currentIsIgnoreLength });
                   currentSegment = [currentSegment[currentSegment.length - 1]];
                   currentIsIgnoreLength = isIgnoreLength;
                 }
@@ -1401,7 +1321,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
             }
 
             if (currentSegment.length > 0) {
-              polylineSegments.push({ points: currentSegment, isTeleport: currentIsIgnoreLength });
+              polylineSegments.push({ points: currentSegment, isMapSegmentTransition: currentIsIgnoreLength });
             }
 
             // Calculate total path length and arrow positions along non-ignoreLength segments
@@ -1410,7 +1330,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
             const segmentLengths: number[] = [];
 
             polylineSegments.forEach((segment) => {
-              if (segment.isTeleport) {
+              if (segment.isMapSegmentTransition) {
                 segmentLengths.push(0);
                 return;
               }
@@ -1436,7 +1356,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
 
                 for (let segIdx = 0; segIdx < polylineSegments.length; segIdx++) {
                   const segment = polylineSegments[segIdx];
-                  if (segment.isTeleport) continue;
+                  if (segment.isMapSegmentTransition) continue;
 
                   const segmentLength = segmentLengths[segIdx];
                   if (accumulatedDist + segmentLength >= targetDist) {
@@ -1470,7 +1390,9 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
             const junctionPoints: Array<{ nodeId: string; node: (Node & { x: number; y: number }) | ControlWithPos; outgoingCount: number }> = [];
             // Use decision point node IDs from the route analysis (matches the count in the route list)
             const decisionPointNodeIdSet = new Set(route.decisionPointNodeIds ?? []);
+            const branchingPointNodeIdSet = new Set(route.branchingPointNodeIds ?? []);
             const decisionPointNodes: Array<{ nodeId: string; node: (Node & { x: number; y: number }) | ControlWithPos }> = [];
+            const branchingPointNodes: Array<{ nodeId: string; node: (Node & { x: number; y: number }) | ControlWithPos }> = [];
             for (let i = 0; i < route.path.length; i++) {
               const nodeId = route.path[i];
               const node = findNodePx(nodeId);
@@ -1487,6 +1409,10 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
 
               if (decisionPointNodeIdSet.has(nodeId)) {
                 decisionPointNodes.push({ nodeId, node });
+              }
+
+              if (branchingPointNodeIdSet.has(nodeId)) {
+                branchingPointNodes.push({ nodeId, node });
               }
             }
 
@@ -1521,8 +1447,8 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
               
               for (let segIdx = 0; segIdx < polylineSegments.length; segIdx++) {
                 const seg = polylineSegments[segIdx];
-                if (seg.isTeleport) {
-                    currentPathEndIndex++; // Always include teleports if we passed them, though they don't render lines
+                if (seg.isMapSegmentTransition) {
+                    currentPathEndIndex++; // Always include map-segment transitions if we passed them, though they don't render lines
                     continue;
                 }
                 
@@ -1562,7 +1488,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
                   // Find last pos for circle
                   for (let segIdx = polylineSegments.length - 1; segIdx >= 0; segIdx--) {
                     const seg = polylineSegments[segIdx];
-                    if (!seg.isTeleport && seg.points.length > 0) {
+                    if (!seg.isMapSegmentTransition && seg.points.length > 0) {
                       pos = seg.points[seg.points.length - 1];
                       break;
                     }
@@ -1587,7 +1513,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
             return (
               <g key={routeIndex}>
                 {polylineSegments.map((segment, segIdx) => {
-                  if (segment.points.length < 2 || segment.isTeleport) return null;
+                  if (segment.points.length < 2 || segment.isMapSegmentTransition) return null;
 
                   if (canvasPlaybackMode) {
                     // Canvas handles covered path + runner; SVG shows static faded route
@@ -1649,7 +1575,32 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
                 {/* Canvas handles runner in live playback; SVG runner only used during video export */}
                 {canvasPlaybackMode ? null : playCircle}
 
-                {/* Decision point markers - only shown when a single route is selected */}
+                {/* Branching point markers - rendered first so decision points appear on top */}
+                {showBranchingPoints && selectedRoute !== null && branchingPointNodes.map((bp, idx) => {
+                  const r = 8;
+                  return (
+                    <g key={`bp-${idx}`}>
+                      <circle
+                        cx={bp.node.x}
+                        cy={bp.node.y}
+                        r={r}
+                        fill="white"
+                        stroke={route.color}
+                        strokeWidth={2}
+                        opacity={0.95}
+                      />
+                      {/* Split icon: scaled to fit inside the branching point circle */}
+                      <g transform={`translate(${bp.node.x - 5}, ${bp.node.y - 5}) scale(0.4167)`}>
+                        <path d="M16 3h5v5" fill="none" stroke={route.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M8 3H3v5" fill="none" stroke={route.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3" fill="none" stroke={route.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="m15 9 6-6" fill="none" stroke={route.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </g>
+                    </g>
+                  );
+                })}
+
+                {/* Decision point markers - rendered last so they appear on top of branching points */}
                 {showDecisionPoints && selectedRoute !== null && decisionPointNodes.map((dp, idx) => {
                   const r = 8; // Radius of the decision point circle
                   return (

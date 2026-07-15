@@ -11,14 +11,14 @@ import { RouteAnalyzer } from "@indoor-o-route-analysis/core";
 import type { Node, Control } from "@indoor-o-route-analysis/core";
 import { Play, Square, Info, MousePointer2, Navigation, Wrench, GitCommitHorizontal, Waypoints } from "lucide-react";
 import { ScrollArea } from "@indoor-o-route-analysis/ui";
-import { cn } from "@indoor-o-route-analysis/core";
+import { cn } from "@indoor-o-route-analysis/ui";
 import { Toggle } from "@indoor-o-route-analysis/ui";
 import { Checkbox } from "@indoor-o-route-analysis/ui";
 import { DifficultyTag } from "@/components/route-analysis/difficulty-tag";
 import { MapVisibilityToggle } from "@/components/map-visibility-toggle";
 import ModifyGraphInfoDialog from "@/components/modify-graph/info-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@indoor-o-route-analysis/ui";
-import { runModifyGraphAnalysis, AnalysisResult, ModifyStrategy, ModifyObjective } from "./analysis-logic";
+import { runModifyGraphAnalysis, type AnalysisResult, type ModifyStrategy, type ModifyObjective } from "./analysis-logic";
 
 interface ModifyGraphPropertiesPanelProps {
   onRouteSelect: (route: { path: string[], distance: number, modification?: AnalysisResult["modification"], centerOnModification?: boolean } | null) => void;

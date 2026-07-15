@@ -1,3 +1,6 @@
+// Utils
+export * from './utils';
+
 // React primitives
 export * from './components/ui/button';
 export * from './components/ui/checkbox';
@@ -22,6 +25,7 @@ export * from './theme-provider';
 
 // Shared rendering
 export * from './control-renderer';
+export * from './map-overlays';
 
 // Hooks
 export * from './hooks/use-feature-flags';
@@ -30,3 +34,4 @@ export * from './hooks/use-playback';
 
 // Context
 export * from './contexts/app-data-context';
+export * from './contexts/settings-context';

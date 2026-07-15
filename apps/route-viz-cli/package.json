@@ -1,0 +1,27 @@
+{
+  "name": "route-viz-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "route-viz-cli": "./index.ts"
+  },
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@indoor-o-route-analysis/core": "workspace:*",
+    "@napi-rs/canvas": "^1.0.2",
+    "linkedom": "^0.18.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "vitest": "^4.1.0"
+  }
+}

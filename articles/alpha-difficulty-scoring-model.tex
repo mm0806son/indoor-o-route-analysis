@@ -1,0 +1,169 @@
+\documentclass[11pt,a4paper,twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, graphicx, booktabs, tikz}
+\usepackage{microtype}
+\usepackage[hyphens]{url}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric}
+\raggedbottom
+
+\title{The Alpha Difficulty Scoring Model}
+\author{}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Alpha is a first, intentionally simple model for scoring the navigational
+difficulty of a route through an indoor orienteering venue. It is additive
+over two structural quantities --- stair crossings and branching points ---
+and its scale is calibrated so that scores align with the difficulty
+categories published by Stockholm Indoor
+Cup~\cite{sic-difficulty}. This note defines the model in isolation, as a
+baseline against which future scoring models can be compared; it is a
+condensed excerpt of the difficulty-scoring model introduced in the
+companion article on graph-based indoor orienteering
+analysis~\cite{foundation}.
+\end{abstract}
+
+\section{Model definition}
+\label{sec:model}
+
+Alpha assumes a route has already been identified (as a sequence of graph
+edges) and scores it from two counts:
+
+\[
+D \;=\; k \bigl(5\,N_f + 3\,N_b\bigr), \qquad k = \frac{100}{81}
+\]
+
+where
+
+\begin{itemize}
+    \item $N_f$ is the number of stair (floor-change) traversals along the
+          route, upward and downward combined --- an edge counts as a stair
+          when its endpoints resolve to different floor levels;
+    \item $N_b$ is the number of \textbf{branching points}: route nodes at
+          which more than one next node is reachable, excluding the node
+          just come from and respecting one-way constraints;
+    \item $k = 100/81$ is a scaling factor that normalizes a reference leg
+          (Stockholm Indoor Cup 2023, stage 1, course 1, leg 3$\to$4; raw
+          score 81) to exactly 100.
+\end{itemize}
+
+Leg difficulty is the score of the leg's shortest route; course difficulty
+defaults to the \emph{maximum} leg difficulty. Scores map onto the five-color
+scale at fixed thresholds (Table~\ref{tab:thresholds}). Alpha is implemented
+as part of the open-source analysis toolchain~\cite{repo}, which computes it
+directly from a venue graph.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Category} & \textbf{Score range} \\ \midrule
+White  & $0$--$20$  \\
+Yellow & $20$--$40$ \\
+Orange & $40$--$60$ \\
+Purple & $60$--$80$ \\
+Black  & $80+$      \\ \bottomrule
+\end{tabular}
+\caption{Difficulty scores mapped to difficulty categories.}
+\label{tab:thresholds}
+\end{table}
+
+\section{Worked example}
+\label{sec:example}
+
+Figure~\ref{fig:example} shows a two-floor fragment with a single route from
+start $S$ to finish $F$. The route crosses two labeled stairs (A and B) and
+passes through one branching point, where a dead-end corridor is also
+reachable.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[every node/.style={draw, circle, inner sep=1.8pt},
+    label/.style={draw=none, inner sep=1pt, font=\footnotesize}]
+    % Floor 1 (bottom)
+    \node (S)  at (0,0)      {};
+    \node (B1) at (1.4,0)    {};
+    \node (DE) at (2.4,-1.0) {};
+    \node (F)  at (3.6,0)    {};
+    \draw (S) -- (B1);
+    \draw (B1) -- (DE);
+
+    % Floor 2 (top)
+    \node (M) at (1.4,1.6) {};
+    \node (N) at (3.6,1.6) {};
+    \draw (M) -- (N);
+
+    % Stairs (dashed, per graph notation)
+    \draw [dashed] (B1) -- (M) node [label, midway, left] {A};
+    \draw [dashed] (N) -- (F) node [label, midway, right] {B};
+
+    % Divider between floor 1 and floor 2
+    \draw [gray, dotted] (-1.1,0.8) -- (4.0,0.8);
+
+    % Node and floor labels (floor labels share a common x so they align)
+    \node [label, above=2pt] at (S)  {$S$};
+    \node [label, below=2pt] at (F)  {$F$};
+    \node [label, below=2pt] at (DE) {dead end};
+    \node [label] at (-0.9,0)   {floor 1};
+    \node [label] at (-0.9,1.6) {floor 2};
+\end{tikzpicture}
+\caption{Worked example. The route from $S$ to $F$ crosses stairs A and B
+($N_f = 2$) via one branching point --- the node where the dead-end corridor
+also departs ($N_b = 1$). This gives
+$D = k(5 \cdot 2 + 3 \cdot 1) = \frac{100}{81}\cdot 13 \approx 16.0$, in the
+White category.}
+\label{fig:example}
+\end{figure}
+
+\section{Refinements beyond raw branching}
+\label{sec:refinements}
+
+Raw branching counts every fork, including trivially dismissible ones (such
+as the dead end in Figure~\ref{fig:example}, which is short and unlikely to
+mislead). Two refinements are computed alongside the score and available to
+future models:
+
+\begin{itemize}
+    \item \textbf{Dead-end filtering:} edges on non-branching chains that
+          terminate at a leaf are excluded --- a passage with only one way in
+          and out creates no real decision.
+    \item \textbf{Decision points:} a stricter variant that counts a node
+          only when an off-route branch is \emph{significant}, i.e.\ runs at
+          least 50 m before dead-ending or rejoining the route. A 10 m alcove
+          is visibly wrong and creates no decision; a 50 m parallel corridor
+          is a genuine route choice.
+\end{itemize}
+
+\section{Known limitations}
+\label{sec:limitations}
+
+Alpha is a baseline, and its limitations chart the research agenda:
+branching is counted, not weighted by how hard the alternatives are to
+reject; the additive form cannot express the combinatorial explosion of
+several \emph{sequential} decisions; and the score depends on how densely
+the navigation graph is drawn, so graph-drawing conventions must be
+standardized before scores are comparable across venues. These are taken up
+as research directions in the companion article~\cite{foundation}.
+
+\begin{thebibliography}{9}
+
+\bibitem{foundation}
+\emph{A graph-based framework for quantitative analysis of navigational
+complexity in indoor orienteering courses} (companion article).
+
+\bibitem{sic-difficulty}
+Stockholm Indoor Cup. \emph{Sv\r{a}righetsgrader --- Difficulty levels}.
+
+\bibitem{repo}
+\emph{Indoor Orienteering Route Analysis} (source code, algorithm reference,
+and datasets). \newblock
+\url{github:objorke/indoor-o-route-analysis}.
+
+\end{thebibliography}
+
+\end{document}

@@ -6,9 +6,27 @@
     "country": "sweden"
   },
   {
+    "title": "Stockholm Indoor Cup 2023 - Etapp 2",
+    "url": "./2023-02-05-Stockholm-Indoor-Cup-E2.json",
+    "date": "2023-02-05",
+    "country": "sweden"
+  },
+  {
     "title": "O-ringen 2023 Åre",
     "url": "./2023-07-25-O-ringen-Åre.json",
     "date": "2023-07-25",
+    "country": "sweden"
+  },
+  {
+    "title": "Stockholm Indoor Cup 2024 - Etapp 1",
+    "url": "./2024-02-03-Stockholm-Indoor-Cup-E1.json",
+    "date": "2024-02-03",
+    "country": "sweden"
+  },
+  {
+    "title": "Stockholm Indoor Cup 2024 - Etapp 2",
+    "url": "./2024-02-04-Stockholm-Indoor-Cup-E2.json",
+    "date": "2024-02-04",
     "country": "sweden"
   },
   {
@@ -39,6 +57,18 @@
     "title": "Herkules Indoor 2026 - Etapp 2",
     "url": "./2026-01-03-Herkules-Indoor-E2.json",
     "date": "2026-01-03",
+    "country": "sweden"
+  },
+  {
+    "title": "Ale Indoor 2026 - Etapp 1",
+    "url": "./2026-01-04-Ale-Indoor-E1.json",
+    "date": "2026-01-04",
+    "country": "sweden"
+  },
+  {
+    "title": "Ale Indoor 2026 - Etapp 2",
+    "url": "./2026-01-04-Ale-Indoor-E2.json",
+    "date": "2026-01-04",
     "country": "sweden"
   },
   {
@@ -87,6 +117,24 @@
     "title": "Oslomesterskapet 2026",
     "url": "./2026-03-14-Oslomesterskapet.json",
     "date": "2026-03-14",
+    "country": "norway"
+  },
+  {
+    "title": "Camp Stokke 2026",
+    "url": "./2026-06-13-Camp-Stokke.json",
+    "date": "2026-06-13",
+    "country": "norway"
+  },
+  {
+    "title": "Villa Pisani",
+    "url": "./2026-06-18-Villa-Pisani.json",
+    "date": "2026-06-18",
+    "country": "italy"
+  },
+  {
+    "title": "Sørlandsgaloppen 2026",
+    "url": "./2026-07-10-Sørlandsgaloppen.json",
+    "date": "2026-07-10",
     "country": "norway"
   }
 ]

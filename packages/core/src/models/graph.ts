@@ -14,5 +14,5 @@ export interface Edge {
   label: string;
   reverseLabel?: string;
   oneWay?: boolean;
-  ignoreLength?: boolean; // renamed from teleport
+  ignoreLength?: boolean; // "map-segment transition" in the UI/docs; renamed from teleport
 }

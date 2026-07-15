@@ -44,7 +44,9 @@ export async function* calculateEventTrafficGenerator(
   });
 
   const nodeTraffic = new Map<string, NodeTraffic>();
-  nodes.forEach((n) => nodeTraffic.set(n.id, { nodeId: n.id, count: 0, courseIds: new Set<string>() }));
+  nodes.forEach((n) => {
+    nodeTraffic.set(n.id, { nodeId: n.id, count: 0, courseIds: new Set<string>() });
+  });
   controls.forEach((c) => {
     if (!nodeTraffic.has(c.id)) {
       nodeTraffic.set(c.id, { nodeId: c.id, count: 0, courseIds: new Set<string>() });

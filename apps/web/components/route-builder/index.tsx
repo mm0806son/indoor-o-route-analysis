@@ -15,6 +15,7 @@ import { RouteAnalyzer } from "@indoor-o-route-analysis/core";
 import { GpxGenerator } from "@indoor-o-route-analysis/core";
 import { getCourseControlLabels, getActualCourseControls } from "@indoor-o-route-analysis/core";
 import { findPolygonForPoint } from "@indoor-o-route-analysis/core";
+import { PRIMARY_ROUTE_COLOR } from "@indoor-o-route-analysis/core";
 
 import type { RouteBuilderMapViewerHandle } from "./map-viewer";
 import type { RouteAnalysisModelViewerHandle } from "@/components/route-analysis/model-viewer";
@@ -830,7 +831,7 @@ export default function RouteBuilder() {
   const customRouteSegments = useMemo(() => {
     if (routePath.length < 2) return undefined;
 
-    const ROUTE_COLOR = "#FF0054";
+    const ROUTE_COLOR = PRIMARY_ROUTE_COLOR;
 
     const getPoint = (id: string) => {
       const node = nodes.find(n => n.id === id);
@@ -848,8 +849,8 @@ export default function RouteBuilder() {
       if (poly?.level !== undefined) currentLevel = poly.level;
     }
 
-    const allSegments: { points: { x: number; y: number; level?: number }[]; isIgnoreLength: boolean; isTeleport: boolean; color: string }[] = [];
-    let currentSegment: typeof allSegments[0] = { points: [], isIgnoreLength: false, isTeleport: false, color: ROUTE_COLOR };
+    const allSegments: { points: { x: number; y: number; level?: number }[]; isIgnoreLength: boolean; isMapSegmentTransition: boolean; color: string }[] = [];
+    let currentSegment: typeof allSegments[0] = { points: [], isIgnoreLength: false, isMapSegmentTransition: false, color: ROUTE_COLOR };
 
     if (firstPt) {
       currentSegment.points.push({ ...firstPt, level: currentLevel });
@@ -875,7 +876,7 @@ export default function RouteBuilder() {
             { ...p2, level: nextLevel },
           ],
           isIgnoreLength,
-          isTeleport: isIgnoreLength,
+          isMapSegmentTransition: isIgnoreLength,
           color: ROUTE_COLOR,
         };
       } else {

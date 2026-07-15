@@ -4,7 +4,7 @@ import * as React from "react"
 // Separator component
 import * as SeparatorPrimitive from "@radix-ui/react-separator"
 
-import { cn } from "@indoor-o-route-analysis/core"
+import { cn } from "../../utils"
 
 const Separator = React.forwardRef<
   React.ElementRef<typeof SeparatorPrimitive.Root>,

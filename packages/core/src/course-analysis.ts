@@ -1,6 +1,53 @@
 import { RouteAnalyzer, type RouteInfo } from "./route-analyzer";
 import type { Course, EventData, Control } from "./models";
 import { getCourseControlLabels, getActualCourseControls } from "./utils";
+import { type DifficultyCategory, type ScoringModel, ScoringModelRegistry } from "./scoring-models";
+
+export type { DifficultyCategory };
+
+/** Per-leg route cap for whole-course analysis. The shortest routes are kept
+ * (best-first), so leg metrics are unaffected; full per-leg enumeration is
+ * still available via a direct single-leg query. */
+const COURSE_OVERVIEW_MAX_ROUTES = 50;
+
+/**
+ * Get the difficulty category (color/label) for a given difficulty score.
+ * Uses the specified scoring model or falls back to the default model.
+ *
+ * @param difficulty - The numeric difficulty score
+ * @param scoringModel - Optional scoring model to use for categorization
+ * @returns The difficulty category with name, label, and colors
+ */
+export function getDifficultyCategory(difficulty: number, scoringModel?: ScoringModel): DifficultyCategory {
+  const model = scoringModel ?? ScoringModelRegistry.getDefaultModel();
+  return model.getDifficultyCategory(difficulty);
+}
+
+/**
+ * Calculate the overall course difficulty from individual leg difficulties.
+ * Uses the specified scoring model or falls back to the default model.
+ *
+ * @param legs - Array of objects containing difficulty scores for each leg
+ * @param scoringModel - Optional scoring model to use for calculation
+ * @returns The overall course difficulty score
+ */
+export function getCourseDifficulty(legs: Array<{ difficulty: number }>, scoringModel?: ScoringModel): number {
+  const model = scoringModel ?? ScoringModelRegistry.getDefaultModel();
+  return model.getCourseDifficulty(legs);
+}
+
+/**
+ * Calculate the average course difficulty from individual leg difficulties.
+ * Uses the specified scoring model or falls back to the default model.
+ *
+ * @param legs - Array of objects containing difficulty scores for each leg
+ * @param scoringModel - Optional scoring model to use for calculation
+ * @returns The average course difficulty score
+ */
+export function getCourseAverageDifficulty(legs: Array<{ difficulty: number }>, scoringModel?: ScoringModel): number {
+  const model = scoringModel ?? ScoringModelRegistry.getDefaultModel();
+  return model.getCourseAverageDifficulty(legs);
+}
 
 /**
  * Represents a single leg in a course analysis
@@ -81,7 +128,7 @@ export async function* analyzeCourseLegsGenerator(
       if (fromControlId !== toControlId && fromControl && toControl) {
         // Calculate alternative routes — use exhaustive search when findAllRoutes is enabled
         const allAlternatives = findAllRoutes
-          ? routeAnalyzer.findAllAlternativePathsBetweenControls(fromControlId, toControlId)
+          ? routeAnalyzer.findAllAlternativePathsBetweenControls(fromControlId, toControlId, COURSE_OVERVIEW_MAX_ROUTES)
           : routeAnalyzer.findAlternativePathsBetweenControls(fromControlId, toControlId, k);
 
         // Ensure sorted by distance (shortest first)
@@ -160,7 +207,8 @@ export function analyzeCourseLegs(
   course: Course,
   event: EventData,
   routeAnalyzer: RouteAnalyzer,
-  findAllRoutes: boolean = false
+  findAllRoutes: boolean = false,
+  maxRoutes: number = COURSE_OVERVIEW_MAX_ROUTES
 ): CourseAnalysisResult {
   const controls = event.raceCourses?.[0]?.controls || [];
   // Get actual course controls (intermediate start controls removed)
@@ -188,7 +236,7 @@ export function analyzeCourseLegs(
       if (fromControlId !== toControlId && fromControl && toControl) {
         // Use exhaustive search when findAllRoutes is enabled
         const allAlternatives = findAllRoutes
-          ? routeAnalyzer.findAllAlternativePathsBetweenControls(fromControlId, toControlId)
+          ? routeAnalyzer.findAllAlternativePathsBetweenControls(fromControlId, toControlId, maxRoutes)
           : routeAnalyzer.findAlternativePathsBetweenControls(fromControlId, toControlId, 6);
         allAlternatives.sort((a, b) => a.distance - b.distance);
 

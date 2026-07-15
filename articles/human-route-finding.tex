@@ -1,0 +1,457 @@
+\documentclass[11pt,a4paper,twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, graphicx, booktabs, tikz}
+\usepackage{microtype}
+\usepackage[hyphens]{url}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric}
+\raggedbottom
+
+\title{How humans solve indoor orienteering courses}
+\author{}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Algorithmic analysis of indoor orienteering courses models the venue as a
+graph and finds routes by exhaustive search. A competitor reading a map
+mid-race cannot explore the whole graph, holds only a handful of items in
+working memory, and must commit in seconds --- yet solves within-floor
+navigation almost instantly, at a glance. This article develops a cognitive
+account of human route finding: within-floor regions are solved perceptually
+as single units of reasoning, so the human's effective search space is the
+condensed \emph{cluster graph} of floor regions connected by labeled stairs.
+On that graph, humans plan bidirectionally from both controls, prefer near
+and goal-directed stairs, and commit to the first connection found rather
+than the best one. We analyze the challenges this strategy faces --- one-way
+passages, discontinuous map segments, working-memory overflow --- and the
+training methods that address them, and describe a deterministic simulation
+that enables new difficulty measures and empirical tests.
+\end{abstract}
+
+\section{Introduction}
+
+A companion article introduces a graph model of indoor orienteering venues:
+nodes at decision-relevant positions, edges for corridors and stairs, one-way
+constraints, and floor membership resolved from level polygons; the identity
+of a route is its sequence of labeled stair crossings~\cite{framework}. On
+this model, algorithms find the shortest route by Dijkstra search and can
+enumerate \emph{every} distinct route between two controls, shortest first.
+
+A human competitor holding the map does none of this. They cannot enumerate;
+they often cannot even verify optimality of the route they choose. Still,
+experienced indoor orienteers solve legs quickly and mostly well. Two
+observations frame this article:
+
+\begin{enumerate}
+    \item \textbf{Within a floor, route finding is perceptual, not
+          deliberative.} Given a start and a target on the same map segment,
+          a quick glance is usually sufficient: the runner \emph{sees} a
+          path through the corridors the way one sees the way out of a
+          drawn maze, without item-by-item reasoning.
+    \item \textbf{Across floors, route finding is deliberative and
+          memory-bound.} Choosing which staircases to take, in which order,
+          is slow, error-prone, and limited by how many intermediate steps
+          the runner can hold in mind while also running.
+\end{enumerate}
+
+The venue-graph model explains why the boundary falls exactly there, what the
+human's effective search problem is, and which strategies make it manageable.
+Understanding this has three uses: it predicts where courses are hard (a
+difficulty model should count \emph{mental} work, not graph edges); it
+suggests concrete training methods; and it can be simulated, giving analysis
+tools a ``human'' route to compare against the optimal one.
+
+\section{Background}
+
+Research on wayfinding in multi-level buildings shows that vertical
+transitions dominate difficulty and that people adopt identifiable
+strategies. H\"olscher et al.~\cite{holscher2006}, studying a complex
+multi-level building, distinguish a \emph{central-point} strategy (route via
+well-known parts), a \emph{direction} strategy (head toward the horizontal
+position of the goal first), and a \emph{floor} strategy (get to the goal's
+floor first); experienced participants favored the floor strategy.
+Wiener et al.~\cite{wiener2009} classify wayfinding tasks by the knowledge
+available; map-based indoor orienteering is unusual in giving complete
+survey knowledge (the map) under severe time pressure.
+
+Cognitive constraints are well established: working memory holds only about
+four chunks~\cite{cowan2001} (the classical estimate was seven~\cite{miller1956}),
+and expert advantage in domains like chess comes largely from \emph{chunking}
+--- perceiving familiar configurations as single units~\cite{chase1973}.
+Decision makers under time pressure \emph{satisfice}: they take the first
+option that clears an acceptability threshold rather than optimizing
+\cite{simon1956}. In orienteering specifically, expert cognition centers on
+anticipatory map reading and strategies that keep attention free for
+execution~\cite{eccles2002}.
+
+Indoor orienteering maps add a further, unusual burden: each floor is printed
+as a separate map segment, so a single staircase appears \emph{twice} --- once
+on each floor's segment --- linked only by its label. Following a route across
+floors therefore requires repeated visual search across segments, a task with
+no outdoor counterpart.
+
+\section{The human search problem on the venue graph}
+
+\subsection{Floor regions are solved perceptually}
+
+The algorithmic framework condenses every region reachable through ordinary
+two-way corridors into a single \emph{cluster}, because corridors never
+change route identity~\cite{framework}. The cognitive claim of this article
+is that the same condensation happens perceptually in the human solver:
+
+\begin{quote}
+A floor region visible on one map segment is, for a competent map reader, a
+solved subproblem --- a single chunk. Route finding within it is fast,
+parallel, and nearly effortless; route finding \emph{between} regions is
+slow, serial, and memory-bound.
+\end{quote}
+
+This is consistent with the maze-tracing character of within-floor planning
+(a perceptual task at which humans are quick) and with chunking theory: the
+corridor layout is processed as a spatial gestalt, not as discrete graph
+nodes~\cite{chase1973}. It immediately explains the empirical shape of indoor
+difficulty guidelines, which grade courses almost entirely by counts of floor
+changes, stairs, and one-way passages --- never by corridor complexity alone
+\cite{framework}.
+
+The consequence is that \textbf{the human's effective search graph is the
+cluster graph}: one node per floor region, one edge per labeled staircase or
+one-way passage. A venue with thousands of map positions collapses, for the
+planner, to a few dozen clusters and 10--20 stair edges. Human route finding
+is search on this small graph under severe resource limits.
+
+\subsection{Resource limits}
+
+On the cluster graph the human solver is bounded in three ways:
+
+\begin{itemize}
+    \item \textbf{Working memory.} A planned route must be carried as a
+          stair-label sequence (e.g.\ $dcccCA$: down D, down C three floors,
+          up C, up A). At roughly four chunks~\cite{cowan2001}, sequences
+          beyond 4--6 crossings cannot be held reliably while running unless
+          they are re-chunked (repeated letters compress well: $ccc$ is one
+          chunk) or re-read en route.
+    \item \textbf{Exploration budget.} Each candidate stair considered costs
+          a visual fixation on the map plus a cross-segment search for where
+          the stair lands. Under race pressure a runner evaluates only a
+          handful of candidates per decision, nothing like the systematic
+          expansion of a best-first search.
+    \item \textbf{No global comparison.} Comparing two complete multi-floor
+          routes requires holding both --- typically beyond capacity. Hence
+          route \emph{choice} degenerates to route \emph{finding}: the first
+          plan that closes is taken~\cite{simon1956}.
+\end{itemize}
+
+\subsection{The observed strategy}
+\label{sec:observed-strategy}
+
+From these constraints, the strategy reported by practitioners and consistent
+with the wayfinding literature follows almost by necessity:
+
+\begin{enumerate}
+    \item \textbf{Same-floor first.} Check whether the leg can be solved
+          within the current cluster. If yes, run it immediately --- even
+          when a stair route would be shorter. This is the floor strategy of
+          H\"olscher et al.~\cite{holscher2006} taken to its extreme, and it
+          is cheap because within-cluster solving is perceptual.
+    \item \textbf{Bidirectional planning.} Otherwise, alternate between two
+          easy local questions: \emph{which stairs can I reach from here?}
+          (forward) and \emph{which stairs would drop me at the control?}
+          (backward). Both are single-segment perceptual queries. Planning
+          from both ends halves the depth that must be bridged --- the
+          classic advantage of bidirectional search, discovered here not by
+          algorithm design but by memory pressure.
+    \item \textbf{Local heuristics for ordering.} Among candidate stairs,
+          prefer the near one, and the one whose far end lies toward the
+          goal (the direction strategy~\cite{holscher2006}).
+    \item \textbf{First connection wins.} When the forward and backward
+          fragments meet in a common floor region, the plan closes:
+          concatenate the forward labels with the backward labels in reverse
+          discovery order, and start running. No alternatives are examined.
+\end{enumerate}
+
+The result is satisficing --- settling for a plan that is good enough rather
+than searching for the best one~\cite{simon1956} --- deterministic-ish, and
+fast --- and systematically non-optimal in ways the algorithmic analysis can
+measure (Section~\ref{sec:simulation}).
+
+\subsection{Memory of previous routes}
+
+The search just described does not start from scratch on every leg. Each
+solved leg leaves behind reusable knowledge: which stair labels exist and
+roughly where they sit, which regions a given staircase connects, and which
+passages are one-way. A staircase already traversed is a known quantity ---
+its far end no longer needs to be searched for on the other segment, so
+evaluating it as a candidate costs almost nothing. In chunking terms
+\cite{chase1973}, earlier routes convert parts of the cluster graph from raw
+map content into pre-formed chunks, simultaneously widening the effective
+exploration budget and cheapening each planned crossing. This predicts two
+observable effects: later legs revisiting familiar stairs are planned faster
+than structurally equivalent early legs, and runners should show a bias
+toward stairs they have already used even when a slightly better unfamiliar
+alternative exists --- a bias course setters can exploit in the same way as
+the commitment traps of Section~\ref{sec:challenges}.
+
+\section{Challenges}
+\label{sec:challenges}
+
+\subsection{One-way passages}
+One-way passages break the symmetry that bidirectional planning relies on: a
+passage usable in the forward fragment may be illegal when mentally walked
+backward from the control, and a plan that ignores this discovers the error
+only on the ground, where recovery is expensive (the passage cannot be
+re-entered against its direction). The technique that addresses this is
+\emph{directional discipline in the backward pass}: when asking ``which
+stairs/passages would bring me here?'', only arrows pointing \emph{into} the
+region count. This is exactly the point where novices' backward planning
+fails, and course setters exploit it deliberately; the difficulty guidelines
+gate one-way passages accordingly~\cite{framework}.
+
+\subsection{Discontinuous map segments}
+A staircase's two ends appear on different map segments, linked only by its
+label. Every crossing added to a plan therefore costs a visual search: find
+the label on the other segment, re-orient, and continue. Errors here ---
+matching the wrong label, or the right label on the wrong segment --- corrupt
+the whole plan. Practitioners mitigate this with \emph{label vocabulary}
+(memorizing the venue's stair letters and their approximate positions during
+the run-in or from earlier legs) and with map handling: thumb on the current
+position, map folded to keep the two active segments adjacent.
+
+The problem sharpens when the segments span multiple \emph{pages} --- for
+large venues the map may be printed on both sides of the sheet, or on
+several sheets. A route crossing a page boundary then involves segments that
+cannot be viewed simultaneously at all: the runner must flip or swap the map
+mid-plan, losing both the thumb anchor on the current position and any
+visual context from the segment just left. Bidirectional planning suffers
+particularly, since the forward and backward fragments may live on different
+pages, forcing the working-memory-bound part of the plan to bridge a gap
+that no fold can close. Crossings between pages are therefore markedly more
+expensive than crossings between co-visible segments, and both course
+setters and difficulty models should treat the page boundary as an
+additional structural cost.
+
+\subsection{Working-memory overflow}
+Legs requiring many crossings exceed the 4-chunk budget. Copers use three
+techniques: \textbf{compression} (encode the plan as the letter string
+$dcccCA$ and rehearse it verbally --- repeated letters and familiar pairs
+compress into single chunks~\cite{chase1973,cowan2001});
+\textbf{plan-as-you-go} (commit only to the first crossing or two, and
+re-plan at an intermediate region --- trading map-reading time while moving
+for memory load); and \textbf{offloading to the map} (re-derive the remainder
+at each floor change rather than storing it). Which mix is optimal depends on
+running speed, map complexity, and the runner's rehearsal skill --- a genuine
+individual-differences question the framework can test.
+
+\subsection{Commitment traps}
+Satisficing means the first closed plan wins, so a course setter can place an
+attractive early connection that is far from optimal --- a \emph{bait}. The
+countermeasure is a cheap \emph{sanity bound}: before running, compare the
+plan's rough length or crossing count against the leg's straight-line
+distance; a plan that feels disproportionate warrants one more look. Experts
+appear to run this check habitually and almost instantly; it is a prime
+candidate for explicit training (Section~\ref{sec:training}).
+
+\subsection{Error recovery}
+When execution diverges from the plan (a missed one-way, a wrong stair), the
+runner must \emph{relocate}: re-establish position, then re-plan from there.
+The same-floor-first strategy makes relocation cheaper than it looks --- the
+current cluster is perceptually solvable once position is known --- so the
+critical skill is recognizing \emph{that} one is off-plan early. Anticipatory
+map reading, the hallmark of expert orienteers~\cite{eccles2002}, serves
+exactly this: knowing what should appear next makes deviations easy to
+notice.
+
+\section{Training the technique}
+\label{sec:training}
+
+The analysis above decomposes indoor route finding into trainable components.
+Deliberate practice --- isolated components, immediate feedback, graded
+difficulty~\cite{ericsson1993} --- suggests the following program, ordered
+from perceptual to strategic. The open toolchain~\cite{repo} supports several
+of these directly, and a companion training application~\cite{training-app}
+implements the program below as a set of deliberate-practice drills with
+timing and immediate feedback.
+
+\begin{enumerate}
+    \item \textbf{Cluster reading.} Timed drills: given a map segment and two
+          points, trace the within-floor route. Trains the perceptual solver
+          that everything else builds on; speed and error rate are easy to
+          measure.
+    \item \textbf{Stair vocabulary.} Given a segment, name all stairs and
+          their directions (up/down) as fast as possible; then, from memory,
+          point to a named stair. Builds the label--position mapping that
+          cross-segment searches depend on.
+    \item \textbf{Label-sequence memory.} Rehearse routes as letter strings
+          ($dcccCA$); recall them after a physical effort interval (memory
+          under load differs sharply from memory at rest). Practice
+          compression: find the chunking of a given string that survives a
+          200\,m run.
+    \item \textbf{Backward planning.} From the control, list every
+          stair/passage that can legally reach it, one-way arrows respected.
+          Do this on paper courses until it becomes automatic.
+    \item \textbf{Bidirectional closure drills.} Full legs, planned under a
+          countdown, answering only: forward reachable stairs, backward
+          reaching stairs, first meeting region. The countdown forces
+          satisficing; the drill trains making the \emph{first} plan a good
+          one by improving candidate ordering.
+    \item \textbf{Bait detection.} Review legs where the human-style plan and
+          the optimal route diverge (the toolchain enumerates all routes and
+          can compute both~\cite{repo}); learn the structural patterns ---
+          attractive near stair, hidden one-way, shorter route via
+          unintuitive direction --- and practice the sanity bound.
+    \item \textbf{Post-race comparison.} After events, compare the route
+          actually run (from split times or memory) against the enumerated
+          route inventory: was the loss in planning (wrong route) or
+          execution (right route, run badly)? This closes the deliberate-%
+          practice feedback loop at the level of whole races.
+\end{enumerate}
+
+Course setters can invert the same list: each drill corresponds to a
+difficulty knob (cluster complexity, stair count and naming, sequence depth,
+one-way density, bait placement) that the graph model makes explicit and
+countable.
+
+\section{Simulating the human solver}
+\label{sec:simulation}
+
+The strategy of Section~3.3 is precise enough to implement. The analysis
+toolchain~\cite{repo} contains a deterministic \emph{human route} algorithm
+operating on the same venue graph as the optimal analyzers:
+
+\begin{enumerate}
+    \item \textbf{Same-floor short-circuit:} if the leg is solvable through
+          unlabeled corridors alone (one-way corridors included in their
+          legal direction), return that route immediately.
+    \item \textbf{Alternating bidirectional search} on the cluster graph:
+          one expansion per side per turn, forward side first. Candidate
+          stairs from the current region are ordered nearest-first, with
+          straight-line direction to the goal as tie-break; each side visits
+          a region at most once (a human does not re-explore).
+    \item \textbf{First valid meeting wins:} when a region is reached by
+          both sides, forward labels are concatenated with the backward
+          side's labels in reverse discovery order; a meeting whose two
+          fragments would reuse the same physical staircase is rejected and
+          the search continues. The concrete path is stitched through
+          cached within-region shortest paths, and the search stops.
+\end{enumerate}
+
+The simulation is intentionally non-optimal, produces exactly one route, and
+is deterministic, so its predictions are testable. It enables measures the
+optimal analysis cannot provide: the \emph{human--optimal gap} (length ratio
+between the simulated human route and the true shortest route --- a direct
+bait detector); \emph{plan depth} (crossings in the plan, a working-memory
+load estimate); and \emph{mental steps} (expansions before the plan closed, a
+planning-time estimate). A leg can be easy for the simulation and hard for
+Dijkstra-based scoring, or vice versa; systematic divergence between the two,
+compared against split-time data, is a sharp empirical test of whether human
+difficulty is better predicted by the human model. A companion plan in the
+repository describes the intended refinements: exposing the exploration
+trace for narration, parameterizing the cognitive limits (memory span,
+exploration budget, heuristic weights), and fitting those parameters per
+runner class against event data~\cite{repo}.
+
+\section{Research directions}
+
+\begin{enumerate}
+    \item \textbf{Validate the same-floor bias:} from split times,
+          measure how often runners take within-floor routes when a shorter
+          stair route exists, by class and by time pressure.
+    \item \textbf{Fit cognitive parameters:} treat memory span, exploration
+          budget, and candidate-ordering weights as free parameters of the
+          simulation; fit them to observed route choices per runner class.
+    \item \textbf{Human-model difficulty scoring:} use plan depth, mental
+          steps, and the human--optimal gap as terms in a difficulty model,
+          and compare its predictive power against structural models on the
+          same data~\cite{framework}.
+    \item \textbf{Bait taxonomy:} classify legs with a large human--optimal
+          gap by their structural cause (near-stair bait, one-way trap,
+          direction illusion); this gives course setters a designed-%
+          difficulty vocabulary.
+    \item \textbf{Training studies:} test whether the drills of
+          Section~\ref{sec:training} transfer --- e.g.\ does label-sequence
+          memory training reduce time loss specifically on deep-sequence
+          legs?
+    \item \textbf{Instrumented stairwells:} place additional split-time
+          units inside stairwells, not just at course controls, to measure
+          time spent per floor change directly rather than inferring it, and
+          to separate planning delay (deciding which stair to take) from
+          execution delay (running it) within a single leg.
+\end{enumerate}
+
+\section{Conclusion}
+
+Human indoor-orienteering route finding is bounded search on the condensed
+cluster graph: floor regions are solved at a glance and treated as single
+chunks, while stair-sequence planning is deliberative, bidirectional,
+satisficing (Section~\ref{sec:observed-strategy}), and limited by a working
+memory of a few chunks. The hard parts
+of indoor navigation --- one-way passages, discontinuous map segments, deep
+stair sequences, commitment traps --- are exactly the points where this
+strategy's assumptions break, and each has an identifiable countermeasure and
+a corresponding training drill. Because the strategy is precise enough to
+simulate, human-style route finding can now be computed alongside optimal
+routes, turning claims about ``what a runner would do'' into measurable,
+falsifiable quantities.
+
+\begin{thebibliography}{9}
+
+\bibitem{framework}
+\emph{A graph-based framework for quantitative analysis of navigational
+complexity in indoor orienteering courses}. Companion article, same
+repository.
+
+\bibitem{holscher2006}
+H\"olscher, C., Meilinger, T., Vrachliotis, G., Br\"osamle, M., \& Knauff, M.
+(2006). Up the down staircase: Wayfinding strategies in multi-level
+buildings. \emph{Journal of Environmental Psychology}, 26(4), 284--299.
+
+\bibitem{wiener2009}
+Wiener, J. M., B\"uchner, S. J., \& H\"olscher, C. (2009). Taxonomy of human
+wayfinding tasks: A knowledge-based approach. \emph{Spatial Cognition \&
+Computation}, 9(2), 152--165.
+
+\bibitem{miller1956}
+Miller, G. A. (1956). The magical number seven, plus or minus two: Some
+limits on our capacity for processing information. \emph{Psychological
+Review}, 63(2), 81--97.
+
+\bibitem{cowan2001}
+Cowan, N. (2001). The magical number 4 in short-term memory: A
+reconsideration of mental storage capacity. \emph{Behavioral and Brain
+Sciences}, 24(1), 87--114.
+
+\bibitem{chase1973}
+Chase, W. G., \& Simon, H. A. (1973). Perception in chess. \emph{Cognitive
+Psychology}, 4(1), 55--81.
+
+\bibitem{simon1956}
+Simon, H. A. (1956). Rational choice and the structure of the environment.
+\emph{Psychological Review}, 63(2), 129--138.
+
+\bibitem{eccles2002}
+Eccles, D. W., Walsh, S. E., \& Ingledew, D. K. (2002). A grounded theory of
+expert cognition in orienteering. \emph{Journal of Sport and Exercise
+Psychology}, 24(1), 68--88.
+
+\bibitem{ericsson1993}
+Ericsson, K. A., Krampe, R. T., \& Tesch-R\"omer, C. (1993). The role of
+deliberate practice in the acquisition of expert performance.
+\emph{Psychological Review}, 100(3), 363--406.
+
+\bibitem{repo}
+\emph{Indoor Orienteering Route Analysis} (source code, algorithm reference,
+and datasets). \newblock
+\url{github:objorke/indoor-o-route-analysis}.
+
+\bibitem{training-app}
+\emph{Indoor-O Training} (companion deliberate-practice training
+application). \newblock
+\url{github:objorke/indoor-o-training}.
+
+\end{thebibliography}
+
+\end{document}

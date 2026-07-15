@@ -5,10 +5,10 @@ import dynamic from "next/dynamic"
 import { useAppData } from "@indoor-o-route-analysis/ui";
 import { getActiveMap } from "@indoor-o-route-analysis/core";
 import Model3DPropertiesPanel, { type ModelMistake } from "./properties-panel";
-import { type Model3DViewerHandle } from "./viewer-3d";
-import { type Model3DMapViewerHandle } from "./map-viewer";
+import type { Model3DViewerHandle } from "./viewer-3d";
+import type { Model3DMapViewerHandle } from "./map-viewer";
 import { findPolygonForPoint } from "@indoor-o-route-analysis/core";
-import { mapToWorld } from "@indoor-o-route-analysis/core";
+import { mapToWorld } from "@indoor-o-route-analysis/core/3d";
 
 const Model3DMapViewer = dynamic(() => import("./map-viewer"), {
   ssr: false,

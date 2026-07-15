@@ -1,9 +1,9 @@
 "use client";
 
-import { EyeOff, Map } from "lucide-react";
+import { EyeOff, Map as MapIcon } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@indoor-o-route-analysis/ui";
-import { cn } from "@indoor-o-route-analysis/core";
+import { cn } from "@indoor-o-route-analysis/ui";
 
 export type BackgroundMapMode = "normal" | "muted" | "hidden";
 
@@ -91,7 +91,7 @@ export function MapVisibilityToggle({
             {currentMode === "hidden" ? (
               <EyeOff className="h-4 w-4" />
             ) : (
-              <Map className={cn("h-4 w-4", currentMode === "muted" && "opacity-50")} />
+              <MapIcon className={cn("h-4 w-4", currentMode === "muted" && "opacity-50")} />
             )}
           </Button>
         </TooltipTrigger>

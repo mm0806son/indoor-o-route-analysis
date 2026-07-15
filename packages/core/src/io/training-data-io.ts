@@ -1,5 +1,5 @@
 import type { EventData, Course } from "../models";
-import type { RouteAnalyzer } from "../route-analyzer";
+import type { RouteInfo } from "../route-analyzer";
 import { findPolygonForPoint } from "../polygon-utils";
 import { getActualCourseControls } from "../utils";
 
@@ -17,6 +17,8 @@ export interface LegExportInfo {
 export interface TrainingRoute {
   route: string;
   length: number;
+  /** Leg-level difficulty score, carried on every route within the leg. */
+  difficulty?: number;
 }
 
 export interface TrainingCourse {
@@ -29,7 +31,7 @@ export interface TrainingCourse {
 }
 
 export interface TrainingEvent {
-  id: string;
+  eventId: string;
   eventName: string;
   eventDate: string;
   exportTime: string;
@@ -38,6 +40,7 @@ export interface TrainingEvent {
   eventImageUrl?: string;
   mapUrl?: string;
   stairs: string[];
+  difficultyScoringModel: string;
   courses: TrainingCourse[];
 }
 
@@ -58,12 +61,18 @@ export class TrainingDataIO {
     return Array.from(stairLabels).sort();
   }
 
+  /**
+   * Build the training-export course from precomputed routes.
+   *
+   * @param routes - Routes per leg, keyed by leg id, as produced by
+   *   `analyzeCourseLegs(..., findAllRoutes = true)`. This is the same route set
+   *   the web app's "show all routes" view displays, so exports match the view.
+   */
   static generateCourseData(
     event: EventData,
     course: Course,
     legs: LegExportInfo[],
-    routeAnalyzer: RouteAnalyzer,
-    k: number = 6,
+    routes: Record<number, RouteInfo[]>,
   ): TrainingCourse {
     const raceCourse = event.raceCourses?.[0];
     const controls = raceCourse?.controls || [];
@@ -79,26 +88,33 @@ export class TrainingDataIO {
       .filter((c): c is any => Boolean(c));
 
     const validRoutes = legs.map((leg) => {
-      const alternatives = routeAnalyzer.findAlternativePathsBetweenControls(leg.fromControlId, leg.toControlId, k);
+      const alternatives = routes[leg.id] ?? [];
       const sorted = [...alternatives].sort((a, b) => a.distance - b.distance);
 
-      const routeMap = new Map<string, number>();
+      // Each route has its own difficulty score, computed by the scoring model
+      // on that route's own path. Keep the first (shortest) occurrence per
+      // unique route description.
+      const routeMap = new Map<string, { distance: number; difficulty: number }>();
       sorted.forEach((r) => {
         const routeDesc = r.description ? r.description.replace(/[,\s]/g, "") : "-";
         if (!routeMap.has(routeDesc)) {
-          routeMap.set(routeDesc, r.distance);
+          routeMap.set(routeDesc, { distance: r.distance, difficulty: r.difficulty });
         }
       });
 
-      // Filter unique route names and sort by increasing length
-      const routes = Array.from(routeMap)
-        .sort(([, distanceA], [, distanceB]) => distanceA - distanceB)
-        .map(([routeDesc, distance]) => ({
+      // Filter unique route names and sort by increasing length.
+      const legRoutes: TrainingRoute[] = Array.from(routeMap.entries())
+        .sort(([, a], [, b]) => a.distance - b.distance)
+        .map(([routeDesc, { distance, difficulty }]) => ({
           route: routeDesc,
           length: Math.round(distance),
+          difficulty: Math.round(difficulty),
         }));
 
-      return routes.length > 0 ? routes : [{ route: "-", length: 0 }];
+      if (legRoutes.length > 0) {
+        return legRoutes;
+      }
+      return [{ route: "-", length: 0, difficulty: Math.round(leg.difficulty) }];
     });
 
     return {
@@ -121,13 +137,14 @@ export class TrainingDataIO {
 
   static generateEventExport(
     event: EventData,
-    courses: TrainingCourse[]
+    courses: TrainingCourse[],
+    difficultyScoringModel: string,
   ): TrainingEvent {
     const eventDateFormatted = event.startTime?.date ?? new Date().toISOString().split("T")[0];
     const extractedStairs = this.extractStairs(event);
-    
+
     return {
-      id: event.id,
+      eventId: event.id,
       eventName: event.name || "Untitled Event",
       eventDate: eventDateFormatted,
       exportTime: new Date().toISOString(),
@@ -136,27 +153,8 @@ export class TrainingDataIO {
       ...(event.eventImageUrl ? { eventImageUrl: event.eventImageUrl } : {}),
       ...(event.mapDownloadUrl ? { mapUrl: event.mapDownloadUrl } : {}),
       stairs: extractedStairs,
+      difficultyScoringModel,
       courses,
     };
-  }
-
-  // Deprecated: Kept for backward compatibility if needed, but updated to use new structure logic
-  static generateExportData(
-    event: EventData,
-    course: Course,
-    legs: LegExportInfo[],
-    routeAnalyzer: RouteAnalyzer,
-    k: number = 6,
-  ): any {
-    const trainingCourse = this.generateCourseData(event, course, legs, routeAnalyzer, k);
-    const trainingEvent = this.generateEventExport(event, [trainingCourse]);
-    
-    // Return old structure for compatibility if any consumers rely on it
-    // But aligning with returning a single course object wrapped in old config style
-    // "config" property was removed in user request, but if I need to support old code temporarily:
-    // The user requested: "change the training app json export format [...] remove exportDate"
-    // So I should return the new TrainingEvent structure.
-    
-    return trainingEvent;
   }
 }

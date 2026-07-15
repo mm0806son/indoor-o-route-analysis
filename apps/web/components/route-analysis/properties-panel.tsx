@@ -6,17 +6,20 @@ import {
   Info,
   Box,
   Maximize2,
-  TrendingUpDown,
+  Tractor,
   Repeat,
   ArrowUpDown,
   Brain,
   Share2,
+  Split,
+  Waypoints,
 } from "lucide-react";
 
 import { useAppData } from "@indoor-o-route-analysis/ui"
 import { Button } from "@indoor-o-route-analysis/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@indoor-o-route-analysis/ui";
 import { PlaybackControls } from "@/components/shared/playback-controls";
+import { ScoringModelSelect } from "@/components/shared";
 import RouteAnalysisInfoDialog from "./info-dialog";
 import { RouteAnalyzer, type RouteInfo, getDifficultyCategory, getCourseDifficulty } from "@indoor-o-route-analysis/core";
 import { ScoringModelRegistry } from "@indoor-o-route-analysis/core";
@@ -33,8 +36,7 @@ import { DIFFICULTY_CATEGORIES } from "@indoor-o-route-analysis/core";
 import { LegName } from "@/components/leg-name";
 import { getCourseControlLabels, getActualCourseControls } from "@indoor-o-route-analysis/core";
 import { CHART_BACKGROUND_OPACITY } from "@indoor-o-route-analysis/core";
-
-const ROUTE_COLORS = ["#FF0054", "#00F5D4", "#8338EC", "#3A86FF", "#FFBE0B", "#06D6A0"];
+import { ROUTE_ANALYSIS_COLORS as ROUTE_COLORS } from "@indoor-o-route-analysis/core";
 
 interface RouteAnalysisPropertiesPanelProps {
   selectedLeg: number | null;
@@ -51,6 +53,8 @@ interface RouteAnalysisPropertiesPanelProps {
   onShowEdgesChange: (show: boolean) => void;
   showDecisionPoints: boolean;
   onShowDecisionPointsChange: (show: boolean) => void;
+  showBranchingPoints: boolean;
+  onShowBranchingPointsChange: (show: boolean) => void;
   mapScale: number;
   isPlaying: boolean;
   playbackSpeed: number;
@@ -58,6 +62,8 @@ interface RouteAnalysisPropertiesPanelProps {
   playReset: number;
   followPlayback: boolean;
   onFollowPlaybackChange: (follow: boolean) => void;
+  autoAdvance: boolean;
+  onAutoAdvanceChange: (autoAdvance: boolean) => void;
   onTogglePlay: () => void;
   onStopPlay: () => void;
   playbackCurrentTime?: number;
@@ -98,6 +104,8 @@ export default function RouteAnalysisPropertiesPanel({
   onShowEdgesChange,
   showDecisionPoints,
   onShowDecisionPointsChange,
+  showBranchingPoints,
+  onShowBranchingPointsChange,
   mapScale,
   isPlaying,
   playbackSpeed,
@@ -105,6 +113,8 @@ export default function RouteAnalysisPropertiesPanel({
   playReset,
   followPlayback,
   onFollowPlaybackChange,
+  autoAdvance,
+  onAutoAdvanceChange,
   onTogglePlay,
   onStopPlay,
   playbackCurrentTime = 0,
@@ -144,9 +154,6 @@ export default function RouteAnalysisPropertiesPanel({
   const [shareLink, setShareLink] = useState("");
   const [shareCopyStatus, setShareCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   // findAllRoutes state moved to parent
-
-  // Get available scoring models
-  const availableScoringModels = useMemo(() => ScoringModelRegistry.getAllModels(), []);
 
   // Get current scoring model
   const currentScoringModel = useMemo(() => {
@@ -421,12 +428,19 @@ export default function RouteAnalysisPropertiesPanel({
           size="icon"
           className="h-7 w-7"
           onClick={() => onShowEdgesChange(!showEdges)}
-          title={showEdges ? "Hide edges with length" : "Show edges with length"}
+          title={showEdges ? "Hide the graph edges from the map view." : "Show all graph edges on the map."}
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="4" y1="4" x2="20" y2="20" />
-            <line x1="4" y1="20" x2="20" y2="4" />
-          </svg>
+          <Waypoints className="h-4 w-4" />
+        </Button>
+        <Button
+          variant={showBranchingPoints ? "active" : "ghost"}
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => onShowBranchingPointsChange(!showBranchingPoints)}
+          title={showBranchingPoints ? "Hide branching points" : "Show branching points"}
+          disabled={selectedRoute === null}
+        >
+          <Split className="h-4 w-4" />
         </Button>
         <Button
           variant={showDecisionPoints ? "active" : "ghost"}
@@ -451,7 +465,7 @@ export default function RouteAnalysisPropertiesPanel({
           onClick={() => onFindAllRoutesChange(!findAllRoutes)}
           title="Show all routes (including minor variations)"
         >
-          <TrendingUpDown className="h-4 w-4" />
+          <Tractor className="h-4 w-4" />
         </Button>
       </div>
 
@@ -613,6 +627,8 @@ export default function RouteAnalysisPropertiesPanel({
           onStopPlay={onStopPlay}
           onPlaybackSpeedChange={onPlaybackSpeedChange}
           onFollowPlaybackChange={onFollowPlaybackChange}
+          autoAdvance={autoAdvance}
+          onAutoAdvanceChange={onAutoAdvanceChange}
           disabled={selectedLeg === null && selectedRoute === null}
           duration={currentDuration}
           currentTime={playbackCurrentTime}
@@ -821,7 +837,12 @@ export default function RouteAnalysisPropertiesPanel({
                                       );
                                     })()}
                                     <span>•</span>
-                                    <span title="Number of route choices (decision points))">
+                                    <span title="Number of branching points (nodes where the runner has more than one outgoing direction)">
+                                      <Split className="h-3 w-3 inline mr-0.5" />
+                                      {route.branchingPointNodeIds.length}
+                                    </span>
+                                    <span>•</span>
+                                    <span title="Number of decision points (meaningful junctions; dead-ends shorter than 50 m are excluded)">
                                       <Brain className="h-3 w-3 inline mr-0.5" />
                                       {route.decisionPoints}
                                     </span>
@@ -1115,30 +1136,52 @@ export default function RouteAnalysisPropertiesPanel({
       </div>
 
       {/* Bottom Toolbar */}
-      <div className="flex items-center gap-2 px-2 py-2 border-t border-border bg-card">
-        <div className="flex-1 min-w-0" title={currentScoringModel.description}>
-          <Select
-            value={currentScoringModel.getFullId()}
-            onValueChange={(value) => {
-              if (selectedEvent) {
-                updateEventData(selectedEvent.id, {
-                    difficultyScoringModel: value,
-                });
-              }
-            }}
-          >
-            <SelectTrigger className="w-full h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableScoringModels.map((model) => (
-                <SelectItem key={model.getFullId()} value={model.getFullId()} className="text-xs">
-                  {model.name} v{model.version}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="border-t border-border bg-card px-2 py-2 space-y-1">
+        {(() => {
+          const modelTooltip = [
+            currentScoringModel.description,
+            currentScoringModel.scalingFactor !== undefined
+              ? `Normalization: ×(100/${Math.round(100 / currentScoringModel.scalingFactor)})`
+              : null,
+            currentScoringModel.referenceCourse
+              ? `Reference: ${currentScoringModel.referenceCourse}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n");
+
+          const selectedRouteFormula = (() => {
+            if (selectedLeg === null) return null;
+            const leg = legs.find((l) => l.id === selectedLeg);
+            if (!leg) return null;
+            const alternatives = getAlternativeRoutes(leg);
+            const route = selectedRoute !== null ? alternatives[selectedRoute] : alternatives[0];
+            return route?.difficultyFormula ?? null;
+          })();
+
+          return (
+            <>
+              <div className="flex items-center gap-2" title={modelTooltip}>
+                <ScoringModelSelect
+                  value={currentScoringModel.getFullId()}
+                  onValueChange={(value) => {
+                    if (selectedEvent) {
+                      updateEventData(selectedEvent.id, {
+                        difficultyScoringModel: value,
+                      });
+                    }
+                  }}
+                  className="w-full h-8 text-xs"
+                />
+              </div>
+              {selectedRouteFormula && (
+                <div className="text-xs font-mono text-muted-foreground px-1">
+                  {selectedRouteFormula}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Info Dialog */}
@@ -1155,8 +1198,6 @@ export default function RouteAnalysisPropertiesPanel({
             mapScale={mapScale}
             scoringModel={currentScoringModel}
             runningSpeed={speed}
-            selectedCourseLegs={legs}
-            selectedCourseRoutes={getAlternativeRoutes}
           />
           <AllCoursesAnalysisDialog
             isOpen={showBatchAnalysis}

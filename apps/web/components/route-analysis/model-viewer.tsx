@@ -5,13 +5,14 @@ import { useAppData } from "@indoor-o-route-analysis/ui";
 import { RouteAnalyzer } from "@indoor-o-route-analysis/core";
 import { findPolygonForPoint } from "@indoor-o-route-analysis/core";
 import { getActualCourseControls } from "@indoor-o-route-analysis/core"; 
-import { VideoExporter } from "@indoor-o-route-analysis/core";
-import { VideoExportSettings } from "./video-export-dialog"; 
-import { mapToWorld, worldToVector3 } from "@indoor-o-route-analysis/core";
+import { VideoExporter } from "@indoor-o-route-analysis/core/export";
+import type { VideoExportSettings } from "@/components/shared/video-export-dialog";
 import type { MapData } from "@indoor-o-route-analysis/core";
+import { ROUTE_ANALYSIS_COLORS } from "@indoor-o-route-analysis/core";
+import { mapToWorld, worldToVector3 } from "@indoor-o-route-analysis/core/3d";
 
 // Import core 3D viewer
-import Model3DViewer, { Model3DViewerHandle } from "@/components/model-3d/viewer-3d";
+import Model3DViewer, { type Model3DViewerHandle } from "@/components/model-3d/viewer-3d";
 // Import route-specific 3D elements
 import { RouteVisualizer, PlaybackMarker, GraphVisualizer, type RouteSegment, type TimingScheduleEntry } from "./3d-elements";
 import { Vector3, CatmullRomCurve3 } from "three";
@@ -170,9 +171,8 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
       return null;
     };
 
-    // Route colors - Must match MapViewer and PropertiesPanel
-    // TODO - use common constant
-    const ROUTE_COLORS = ["#FF0054", "#00F5D4", "#8338EC", "#3A86FF", "#FFBE0B", "#06D6A0"];
+    // Route colors - shared with MapViewer and PropertiesPanel via ROUTE_ANALYSIS_COLORS
+    const ROUTE_COLORS = ROUTE_ANALYSIS_COLORS;
 
     // If a specific route is selected, show only that one. Otherwise show all.
     const routesToShow = selectedRoute !== null ? [routes[selectedRoute]] : routes;
@@ -181,7 +181,7 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
     const allSegments: Array<{
       points: { x: number; y: number; level?: number }[];
       isIgnoreLength: boolean;
-      isTeleport: boolean;
+      isMapSegmentTransition: boolean;
       color: string;
     }> = [];
 
@@ -202,10 +202,10 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
 
       let currentLevel = startLevel;
 
-      let currentSegment: { points: { x: number; y: number; level?: number }[]; isIgnoreLength: boolean; isTeleport: boolean; color: string } = {
+      let currentSegment: { points: { x: number; y: number; level?: number }[]; isIgnoreLength: boolean; isMapSegmentTransition: boolean; color: string } = {
         points: [],
         isIgnoreLength: false,
-        isTeleport: false,
+        isMapSegmentTransition: false,
         color,
       };
 
@@ -265,7 +265,7 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
           currentSegment = {
             points: [pt1, pt2],
             isIgnoreLength: isIgnoreLength,
-            isTeleport: isIgnoreLength,
+            isMapSegmentTransition: isIgnoreLength,
             color,
           };
         } else {

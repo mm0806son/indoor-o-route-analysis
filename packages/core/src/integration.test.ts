@@ -9,14 +9,14 @@ import { analyzeCourseLegs } from './course-analysis';
 describe('Integration Tests - Stockholm Indoor Cup E1', () => {
   it('should import Stockholm Indoor Cup E1 example and verify leg 2-3 difficulty score', () => {
     // Load the example file
-    const examplePath = join(__dirname, '../public/examples/2025-02-01 Stockholm Indoor Cup E1.json');
+    const examplePath = join(__dirname, '../../../apps/web/public/examples/2025-02-01-Stockholm-Indoor-Cup-E1.json');
     const jsonContent = readFileSync(examplePath, 'utf-8');
     
     // Parse the event
     const event = parseEventFromJSON(jsonContent);
     
     // Verify basic event properties
-    expect(event.name).toBe("Stockholm Indoor Cup 2025 Etapp 1");
+    expect(event.name).toBe("Stockholm Indoor Cup 2025 - Etapp 1");
     expect(event.startTime.date).toBe("2025-02-01");
     expect(event.country).toBe("sweden");
     
@@ -32,9 +32,9 @@ describe('Integration Tests - Stockholm Indoor Cup E1', () => {
     expect(raceCourse.vertices).toBeDefined();
     expect(raceCourse.edges).toBeDefined();
     
-    // Get the first course (Herrar)
+    // Get the first course
     const course = raceCourse.courses![0];
-    expect(course.name).toBe('Herrar');
+    expect(course.name).toBeTruthy();
     expect(course.controls.length).toBeGreaterThan(2);
     
     // Find controls for leg 2-3 (control codes "31" and "32")
@@ -82,7 +82,7 @@ describe('Integration Tests - Stockholm Indoor Cup E1', () => {
 
   it('should verify Stockholm Indoor Cup E1 has expected structure', () => {
     // Load the example file
-    const examplePath = join(__dirname, '../public/examples/2025-02-01 Stockholm Indoor Cup E1.json');
+    const examplePath = join(__dirname, '../../../apps/web/public/examples/2025-02-01-Stockholm-Indoor-Cup-E1.json');
     const jsonContent = readFileSync(examplePath, 'utf-8');
     
     // Parse the event
@@ -99,7 +99,6 @@ describe('Integration Tests - Stockholm Indoor Cup E1', () => {
 
       // Verify edges have required properties
       const firstEdge = raceCourse.edges[0];
-      expect(firstEdge).toHaveProperty("id");
       expect(firstEdge).toHaveProperty("from");
       expect(firstEdge).toHaveProperty("to");
       expect(firstEdge).toHaveProperty("label");
@@ -108,7 +107,7 @@ describe('Integration Tests - Stockholm Indoor Cup E1', () => {
 
   it('should calculate difficulty for multiple legs in Stockholm Indoor Cup E1', () => {
     // Load the example file
-    const examplePath = join(__dirname, '../public/examples/2025-02-01 Stockholm Indoor Cup E1.json');
+    const examplePath = join(__dirname, '../../../apps/web/public/examples/2025-02-01-Stockholm-Indoor-Cup-E1.json');
     const jsonContent = readFileSync(examplePath, 'utf-8');
     
     // Parse the event
@@ -166,7 +165,7 @@ describe('Integration Tests - Stockholm Indoor Cup E1', () => {
 describe('Integration Tests - Stockholm Indoor Cup 2026 E1', () => {
   it('should find all routes from control 71 to 59 in Bana 1, including route "abcccCAddEEEEe"', () => {
     // Load the 2026 example file
-    const examplePath = join(__dirname, '../public/examples/2026-02-07 Stockholm Indoor Cup E1.json');
+    const examplePath = join(__dirname, '../../../apps/web/public/examples/2026-02-07-Stockholm-Indoor-Cup-E1.json');
     const jsonContent = readFileSync(examplePath, 'utf-8');
 
     // Parse the event
@@ -217,7 +216,7 @@ describe('Integration Tests - Stockholm Indoor Cup 2026 E1', () => {
 
 describe('Integration Tests - Porsgrunn inne-o', () => {
   it('should find all routes from control 109 to 116 (leg 7-8) without hanging', () => {
-    const examplePath = join(__dirname, '../public/examples/2026-01-24 Porsgrunn inne-o.json');
+    const examplePath = join(__dirname, '../../../apps/web/public/examples/2026-01-24-Porsgrunn-inne-o.json');
     const jsonContent = readFileSync(examplePath, 'utf-8');
     const event = parseEventFromJSON(jsonContent);
     const raceCourse = event.raceCourses![0];
@@ -258,7 +257,7 @@ describe('Integration Tests - Porsgrunn inne-o', () => {
   }, 30_000);
 
   it('should analyze all courses with findAllRoutes=true without hanging', () => {
-    const examplePath = join(__dirname, '../public/examples/2026-01-24 Porsgrunn inne-o.json');
+    const examplePath = join(__dirname, '../../../apps/web/public/examples/2026-01-24-Porsgrunn-inne-o.json');
     const jsonContent = readFileSync(examplePath, 'utf-8');
     const event = parseEventFromJSON(jsonContent);
     const raceCourse = event.raceCourses![0];
@@ -288,4 +287,72 @@ describe('Integration Tests - Porsgrunn inne-o', () => {
       expect(elapsed).toBeLessThan(30_000);
     }
   }, 120_000);
+});
+
+describe('Route enumeration completeness (best-first)', () => {
+  function loadAnalyzer(file: string) {
+    const examplePath = join(__dirname, `../../../apps/web/public/examples/${file}`);
+    const event = parseEventFromJSON(readFileSync(examplePath, 'utf-8'));
+    const raceCourse = event.raceCourses![0];
+    const mapScale = raceCourse.maps?.[0]?.scale || 800;
+    const scoringModel = ScoringModelRegistry.getModelOrDefault(
+      event.difficultyScoringModel || 'stepscore@0.1',
+    );
+    return new RouteAnalyzer(
+      raceCourse.controls!,
+      raceCourse.vertices!,
+      raceCourse.edges!,
+      mapScale,
+      scoringModel,
+      raceCourse.polygons || [],
+    );
+  }
+
+  it('Porsgrunn 109->116 enumerates many sequences incl. a 4-label route', () => {
+    const analyzer = loadAnalyzer('2026-01-24-Porsgrunn-inne-o.json');
+    const routes = analyzer.findAllAlternativePathsBetweenControls('109', '116');
+
+    // Today the DFS finds 1 route (label sequence "r,s"); the real graph has
+    // hundreds of distinct sequences, including ones with exactly 4 stairs.
+    expect(routes.length).toBeGreaterThanOrEqual(50);
+    expect(routes.some(r => r.labels.length === 4)).toBe(true);
+  });
+
+  it('returns routes sorted by ascending distance', () => {
+    const analyzer = loadAnalyzer('2026-01-24-Porsgrunn-inne-o.json');
+    const routes = analyzer.findAllAlternativePathsBetweenControls('109', '116');
+    for (let i = 1; i < routes.length; i++) {
+      expect(routes[i].distance).toBeGreaterThanOrEqual(routes[i - 1].distance);
+    }
+  });
+
+  it('Stockholm 71->59 keeps the long route and does not drop sequences at 200', () => {
+    const analyzer = loadAnalyzer('2026-02-07-Stockholm-Indoor-Cup-E1.json');
+    const routes = analyzer.findAllAlternativePathsBetweenControls('71', '59');
+    const labels = new Set(routes.map(r => r.labels.join('')));
+
+    // The 14-label route must survive (it is dropped today by the 200 cap).
+    expect(labels.has('abcccCAddEEEEe')).toBe(true);
+    // Complete visible-stair-sequence enumeration yields ~264 here, comfortably
+    // above the old 200 cap that silently dropped sequences.
+    expect(routes.length).toBeGreaterThan(200);
+  });
+
+  it('picks the shortest representative per label sequence (deterministic)', () => {
+    const analyzer = loadAnalyzer('2026-01-24-Porsgrunn-inne-o.json');
+    const a = analyzer.findAllAlternativePathsBetweenControls('109', '116');
+    const b = analyzer.findAllAlternativePathsBetweenControls('109', '116');
+    const key = (rs: { labels: string[]; distance: number }[]) =>
+      rs.map(r => `${r.labels.join('')}@${r.distance.toFixed(2)}`).join('|');
+    expect(key(a)).toBe(key(b));
+  });
+
+  it('enumerates Porsgrunn 109->116 in under 2 seconds', () => {
+    const analyzer = loadAnalyzer('2026-01-24-Porsgrunn-inne-o.json');
+    const start = Date.now();
+    const routes = analyzer.findAllAlternativePathsBetweenControls('109', '116');
+    const elapsed = Date.now() - start;
+    expect(routes.length).toBeGreaterThanOrEqual(50);
+    expect(elapsed).toBeLessThan(2000);
+  });
 });

@@ -1,11 +1,5 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
 import type { Control } from "./models/control";
 import type { CourseControl } from "./models/course";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
 
 /**
  * Get the actual course controls by removing intermediate start controls.

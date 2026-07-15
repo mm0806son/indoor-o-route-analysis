@@ -1,6 +1,6 @@
 {
   "id": "033d8e68-33f8-4cc5-a880-8eeb0828cc51",
-  "name": "Stockholm Indoor Cup 2025 Etapp 1",
+  "name": "Stockholm Indoor Cup 2025 - Etapp 1",
   "startTime": {
     "date": "2025-02-01"
   },
@@ -9,7 +9,7 @@
       "courses": [
         {
           "id": "b0fb1b95-6889-47d3-bed3-ee3049a866e8",
-          "name": "Herrar",
+          "name": "Bana 1",
           "mapId": "afa90ddb-035f-4e10-a017-3e818a19367d",
           "controls": [
             {
@@ -103,12 +103,12 @@
               "controlId": "F"
             }
           ],
-          "numberOfCompetitors": 10,
+          "numberOfCompetitors": 235,
           "targetDifficulty": "black"
         },
         {
           "id": "381b75af-6cf2-4745-894d-7f4e34fe0b90",
-          "name": "Motion Svår",
+          "name": "Bana 3",
           "controls": [
             {
               "controlId": "S"
@@ -188,7 +188,7 @@
         },
         {
           "id": "4ed83cb6-fb55-405c-b5c3-a8015f251461",
-          "name": "H17",
+          "name": "Bana 2",
           "controls": [
             {
               "controlId": "S"
@@ -5086,10 +5086,26 @@
           }
         }
       ],
-      "customRoutes": []
+      "customRoutes": [],
+      "classAssignments": [
+        {
+          "className": "Herrar",
+          "courseName": "Bana 1",
+          "numberOfCompetitors": 235
+        },
+        {
+          "className": "H17",
+          "courseName": "Bana 2"
+        },
+        {
+          "className": "Motion Svår",
+          "courseName": "Bana 3"
+        }
+      ]
     }
   ],
   "country": "sweden",
   "eventUrl": "https://eventor.orientering.se/Events/Show/51648",
-  "eventImageUrl": "https://grundskola.stockholm/optimized/serviceunitspage/filer/hitta/fc4b0f64-419a-4171-8027-268f1aa3fed1.png?format=webp"
+  "eventImageUrl": "https://grundskola.stockholm/optimized/serviceunitspage/filer/hitta/fc4b0f64-419a-4171-8027-268f1aa3fed1.png?format=webp",
+  "mapDownloadUrl": "https://drive.google.com/drive/folders/1tjOeIE6JRpV-9Qwku2t6CJjIbWWcVxyZ"
 }

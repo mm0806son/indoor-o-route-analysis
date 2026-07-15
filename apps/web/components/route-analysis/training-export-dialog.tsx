@@ -15,6 +15,7 @@ import {
 import { Label } from "@indoor-o-route-analysis/ui"
 import { RadioGroup, RadioGroupItem } from "@indoor-o-route-analysis/ui"
 import { Progress } from "@indoor-o-route-analysis/ui"
+import { downloadFile } from "@/components/shared"
 
 import { RouteAnalyzer, type RouteInfo } from "@indoor-o-route-analysis/core"
 import { analyzeCourseLegsGenerator, type Leg } from "@indoor-o-route-analysis/core"
@@ -32,9 +33,6 @@ interface TrainingExportDialogProps {
   mapScale: number
   scoringModel: ScoringModel
   runningSpeed: number
-  // Pre-calculated data for the selected course
-  selectedCourseLegs?: Leg[]
-  selectedCourseRoutes?: (leg: Leg) => RouteInfo[]
 }
 
 export function TrainingExportDialog({
@@ -45,8 +43,6 @@ export function TrainingExportDialog({
   event,
   mapScale,
   scoringModel,
-  selectedCourseLegs,
-  selectedCourseRoutes,
 }: TrainingExportDialogProps) {
   const [format, setFormat] = useState<"json" | "xml">("json")
   const [scope, setScope] = useState<"selected" | "all">("selected")
@@ -88,45 +84,24 @@ export function TrainingExportDialog({
 
       for (const course of coursesToExport) {
         setStatusMessage(`Analyzing ${course.name}...`)
-        
-        let legs: Leg[] = []
-        let getRoutes: (leg: Leg) => RouteInfo[] = () => []
 
-        // Use pre-calculated data if available and we are processing the selected course
-        if (course.id === selectedCourseId && selectedCourseLegs && selectedCourseRoutes) {
-          legs = selectedCourseLegs
-          getRoutes = selectedCourseRoutes
-        } else {
-          // Perform analysis
-          // Always find all routes including minor variations for training export
-          const generator = analyzeCourseLegsGenerator(course, event, routeAnalyzer, true)
-          let routesRecord: Record<number, RouteInfo[]> = {}
-          
-           
-          for await (const _update of generator) {
-            // Optional: update inner progress for long courses?
-          }
-          
-          const finalResult = await (async () => {
-             const gen = analyzeCourseLegsGenerator(course, event, routeAnalyzer, true)
-             let lastYield = { legs: [] as Leg[], routes: {} as Record<number, RouteInfo[]> }
-             for await (const val of gen) {
-               lastYield = val
-             }
-             return lastYield
-          })()
-          
-          legs = finalResult.legs
-          routesRecord = finalResult.routes
-          getRoutes = (leg: Leg) => routesRecord[leg.id] || []
+        // Always enumerate the full "show all routes" set (findAllRoutes = true) so the
+        // export matches that view, regardless of the live on-screen toggle. Run the
+        // analysis to completion and take the final yield.
+        let legs: Leg[] = []
+        let routesRecord: Record<number, RouteInfo[]> = {}
+        for await (const update of analyzeCourseLegsGenerator(course, event, routeAnalyzer, true)) {
+          legs = update.legs
+          routesRecord = update.routes
         }
+        const getRoutes = (leg: Leg): RouteInfo[] => routesRecord[leg.id] || []
 
         // Store analyzed data
         const courseData = TrainingDataIO.generateCourseData(
           event,
           course,
           legs,
-          routeAnalyzer,
+          routesRecord,
         )
         analyzedCourses.push(courseData)
 
@@ -156,7 +131,7 @@ export function TrainingExportDialog({
       // If JSON, we combine all into one event file
       if (format === "json") {
         setStatusMessage("Generating Event JSON...")
-        const eventExport = TrainingDataIO.generateEventExport(event, analyzedCourses)
+        const eventExport = TrainingDataIO.generateEventExport(event, analyzedCourses, scoringModel.getFullId())
         
         // Use event name for filename if multiple/all courses, otherwise specific course name
         // But since format wraps everything in TrainingEvent, maybe event name is best default?
@@ -169,7 +144,7 @@ export function TrainingExportDialog({
         } else {
              const eventDate = event.startTime?.date ? new Date(event.startTime.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
              const eventName = sanitizeNamePart(event.name || "event");
-             filename = `${eventDate} ${eventName} - training.json`;
+             filename = `${eventDate} ${eventName}-training.json`;
         }
 
         const content = JSON.stringify(eventExport, null, 2)
@@ -284,16 +259,4 @@ function buildExportFilename(event: EventData, course: Course, format: "json" | 
     const eventName = sanitizeNamePart(event.name || "event");
     const courseName = sanitizeNamePart(course.name || "course");
     return `${eventDate} ${eventName} ${courseName} - training.${format}`;
-}
-
-function downloadFile(content: string, filename: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }

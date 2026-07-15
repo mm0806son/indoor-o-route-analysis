@@ -1,4 +1,4 @@
-import { ScoringModel, type RouteContext, isLevelChangeEdge } from "./base";
+import { ScoringModel, type RouteContext, isLevelChangeEdge, analyzeBranchingPoints } from "./base";
 import { findPolygonForPoint } from "../polygon-utils";
 import type { Edge } from "../models/graph";
 
@@ -10,10 +10,10 @@ import type { Edge } from "../models/graph";
  * - number of stairs downstairs  x 5
  * - number of branching points   x 3
  *
- * A branching point is any node on the route where the total number of
- * connected edges exceeds what the route path alone requires (1 for the
- * first node, 2 for intermediate nodes). No consideration of edge
- * direction or one-way constraints.
+ * A branching point is any node on the route where the runner has more than
+ * one onward choice. One-way constraints are respected: a one-way edge is
+ * counted only when it points away from the node (a real outgoing choice);
+ * a one-way edge pointing into the node cannot be reversed and is not counted.
  *
  * Stair direction (up/down) is determined by comparing the floor levels of
  * the two nodes connected by a level-change edge.
@@ -30,17 +30,39 @@ export class AlphaScoringModel extends ScoringModel {
   readonly name = "Alpha";
   readonly version = "0.1";
   readonly description = "Difficulty = upstairs*5 + downstairs*5 + branching*3";
-  readonly scalingFactor = 100 / 102;
-  readonly referenceCourse = "Stockholm Indoor Cup 2023 Etapp 1, Bana 1, 15→16";
+  // Normalized so the shortest route of the reference leg scores exactly 100.
+  // Reference leg 3→4 shortest route has a raw score of 81.
+  readonly scalingFactor = 100 / 81;
+  readonly referenceCourse = "Stockholm Indoor Cup 2023 Etapp 1, Bana 1, 3→4 (shortest route)";
 
   calculateDifficulty(context: RouteContext): number {
     if (context.path.length < 2) return 0;
 
     const stairs = this.countStairs(context);
-    const branchingPoints = this.countBranchingPoints(context);
+    const branchingPoints = analyzeBranchingPoints(context).count;
 
     const raw = stairs.up * 5 + stairs.down * 5 + branchingPoints * 3;
     return raw * (this.scalingFactor ?? 1);
+  }
+
+  override getBreakdownFormula(context: RouteContext): string {
+    if (context.path.length < 2) return "D=0";
+
+    const stairs = this.countStairs(context);
+    const branchingPoints = analyzeBranchingPoints(context).count;
+    const raw = stairs.up * 5 + stairs.down * 5 + branchingPoints * 3;
+    const result = raw * (this.scalingFactor ?? 1);
+
+    const parts: string[] = [];
+    if (stairs.up > 0) parts.push(`${stairs.up}*5`);
+    if (stairs.down > 0) parts.push(`${stairs.down}*5`);
+    if (branchingPoints > 0) parts.push(`${branchingPoints}*3`);
+
+    const inner = parts.length > 0 ? parts.join("+") : "0";
+    const refRaw = this.scalingFactor !== undefined ? Math.round(100 / this.scalingFactor) : undefined;
+    const scalePart = refRaw !== undefined ? `/${refRaw}*100` : "";
+
+    return `D=(${inner})${scalePart}=${Math.round(result * 10) / 10}`;
   }
 
   /**
@@ -79,36 +101,6 @@ export class AlphaScoringModel extends ScoringModel {
     }
 
     return { up, down };
-  }
-
-  /**
-   * Count branching points along the route.
-   *
-   * A branching point is any node on the route where the total number of
-   * connected edges is greater than the number of path edges at that node.
-   * The first node has 1 path edge (outgoing); intermediate nodes have 2
-   * (incoming + outgoing). Edge direction and one-way constraints are
-   * ignored — only the raw edge count matters.
-   */
-  private countBranchingPoints(context: RouteContext): number {
-    let count = 0;
-
-    for (let i = 0; i < context.path.length - 1; i++) {
-      const currentId = context.path[i];
-      const connectedEdgeCount = context.edges.filter(
-        (e) => e.from === currentId || e.to === currentId,
-      ).length;
-
-      // First node on path has 1 path edge (outgoing),
-      // intermediate nodes have 2 (incoming + outgoing).
-      const expectedPathEdges = i === 0 ? 1 : 2;
-
-      if (connectedEdgeCount > expectedPathEdges) {
-        count++;
-      }
-    }
-
-    return count;
   }
 
   /**

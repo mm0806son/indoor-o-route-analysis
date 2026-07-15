@@ -16,7 +16,7 @@ import { useAppData } from "@indoor-o-route-analysis/ui";
 import { ScrollArea } from "@indoor-o-route-analysis/ui";
 import Model3DInfoDialog from "./info-dialog";
 
-import { Polygon } from "@indoor-o-route-analysis/core";
+import type { Polygon } from "@indoor-o-route-analysis/core";
 
 export interface ModelMistake {
   id: string;

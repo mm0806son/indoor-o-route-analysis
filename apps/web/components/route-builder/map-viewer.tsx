@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useRef, forwardRef, useImperativeHandle, useEffect, useMemo } from "react";
-import MapViewer, { MapViewerState, MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
+import MapViewer, { type MapViewerState, type MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
 import type { Node, Edge, Control } from "@indoor-o-route-analysis/core";
 import { edgeKey } from "@indoor-o-route-analysis/core";
 import type { MapData } from "@indoor-o-route-analysis/core";
-import { ControlRenderer } from "@indoor-o-route-analysis/ui";
+import { ControlRenderer, buildRoutePathSegments } from "@indoor-o-route-analysis/ui";
 import { useAppData } from "@indoor-o-route-analysis/ui";
-import { VideoExporter, type VideoExportContext } from "@indoor-o-route-analysis/core";
+import { VideoExporter, type VideoExportContext } from "@indoor-o-route-analysis/core/export";
 import type { VideoExportSettings } from "@/components/shared/video-export-dialog";
 import {
   GRAPH_EDGE_COLOR,
@@ -17,6 +17,7 @@ import {
   ROUTE_WAYPOINT_RADIUS,
   COURSE_COLOR,
   MM_TO_METERS,
+  PRIMARY_ROUTE_COLOR,
 } from "@indoor-o-route-analysis/core";
 
 interface RouteBuilderMapViewerProps {
@@ -178,8 +179,12 @@ const RouteBuilderMapViewer = forwardRef<RouteBuilderMapViewerHandle, RouteBuild
     if (routePath.length < 2 || !_scale) return 0;
     let total = 0;
     const nodeMap = new Map<string, { x: number; y: number }>();
-    nodes.forEach(n => nodeMap.set(n.id, { x: n.x, y: n.y }));
-    controls.forEach(c => nodeMap.set(c.id, { x: c.mapPosition.x, y: c.mapPosition.y }));
+    nodes.forEach(n => {
+      nodeMap.set(n.id, { x: n.x, y: n.y });
+    });
+    controls.forEach(c => {
+      nodeMap.set(c.id, { x: c.mapPosition.x, y: c.mapPosition.y });
+    });
 
     for (let i = 0; i < routePath.length - 1; i++) {
       const p1 = nodeMap.get(routePath[i]);
@@ -461,29 +466,15 @@ const RouteBuilderMapViewer = forwardRef<RouteBuilderMapViewerHandle, RouteBuild
     if (pathNodes.length < 2) return null;
 
     // Build continuous polyline segments, breaking at ignoreLength edges
-    const polylines: string[] = [];
-    let currentPoints: string[] = []; 
-
-    for (let i = 0; i < pathNodes.length; i++) {
-      if (i === 0) {
-        currentPoints.push(`${pathNodes[i].x},${pathNodes[i].y}`);
-        continue;
-      }
-
-      const edge = edges.find((e) => 
-        (e.from === routePath[i - 1] && e.to === routePath[i]) || 
-        (e.from === routePath[i] && e.to === routePath[i - 1])
-      );
-
-      if (edge?.ignoreLength) {
-        // Break the polyline here
-        if (currentPoints.length >= 2) polylines.push(currentPoints.join(' '));
-        currentPoints = [`${pathNodes[i].x},${pathNodes[i].y}`];
-      } else {
-        currentPoints.push(`${pathNodes[i].x},${pathNodes[i].y}`);
-      }
-    }
-    if (currentPoints.length >= 2) polylines.push(currentPoints.join(' '));
+    const polylines = buildRoutePathSegments(
+      routePath,
+      (id) => graphNodes.get(id) ?? null,
+      (fromId, toId) => !!edges.find((e) =>
+        (e.from === fromId && e.to === toId) || (e.from === toId && e.to === fromId)
+      )?.ignoreLength,
+    )
+      .filter((seg) => !seg.isMapSegmentTransition && seg.points.length >= 2)
+      .map((seg) => seg.points.map((p) => `${p.x},${p.y}`).join(" "));
 
     return (
       <g key="route-path">
@@ -746,7 +737,7 @@ const RouteBuilderMapViewer = forwardRef<RouteBuilderMapViewerHandle, RouteBuild
               const courseControlCodes = courseControls.map(c => c.id);
               
               // Use provided label overrides if available
-              let label: string | undefined = undefined;
+              let label: string | undefined ;
               if (isFromControl) label = fromControlLabel;
               if (isToControl) label = toControlLabel;
 
@@ -815,7 +806,7 @@ const RouteBuilderMapViewer = forwardRef<RouteBuilderMapViewerHandle, RouteBuild
           {/* Playback runner marker — positioned via DOM in animation loop */}
           <g ref={runnerGroupRef} key="playback-runner" visibility="hidden">
             <circle cx={0} cy={0} r={10} fill="white" opacity={0.6} pointerEvents="none" />
-            <circle cx={0} cy={0} r={7} fill="#FF0054" stroke="white" strokeWidth={2} pointerEvents="none" />
+            <circle cx={0} cy={0} r={7} fill={PRIMARY_ROUTE_COLOR} stroke="white" strokeWidth={2} pointerEvents="none" />
           </g>
         </svg>
       );

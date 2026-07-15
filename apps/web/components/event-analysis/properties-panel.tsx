@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useMemo, useState } from "react";
-import { Map, Download, Menu, Share2, CircleDot, Info } from "lucide-react";
+import { Download, Menu, Share2, CircleDot, Info } from "lucide-react";
 import { Button } from "@indoor-o-route-analysis/ui";
 import { Label } from "@indoor-o-route-analysis/ui";
 import { Separator } from "@indoor-o-route-analysis/ui";
@@ -23,7 +23,7 @@ import {
 } from "@indoor-o-route-analysis/ui";
 import { useAppData } from "@indoor-o-route-analysis/ui";
 import { MapVisibilityToggle } from "@/components/map-visibility-toggle";
-import { EdgeTraffic, NodeTraffic } from "./analysis-logic";
+import type { EdgeTraffic, NodeTraffic } from "./analysis-logic";
 import EventAnalysisInfoDialog from "./info-dialog";
 
 interface EventAnalysisPropertiesPanelProps {

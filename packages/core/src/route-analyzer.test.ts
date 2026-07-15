@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { RouteAnalyzer, getDifficultyCategory, getCourseDifficulty } from './route-analyzer';
+import { RouteAnalyzer } from './route-analyzer';
+import { getDifficultyCategory, getCourseDifficulty } from './course-analysis';
 import type { Control } from './models/control';
 import type { Node } from "./models/graph";
 import type { Edge } from "./models/graph";
@@ -245,6 +246,82 @@ describe('RouteAnalyzer', () => {
       // Check that we have different stair sequences (if multiple routes exist)
       const uniqueSequences = new Set(stairSequences);
       expect(uniqueSequences.size).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Human Route Analysis', () => {
+    it('prefers a same-floor unlabeled route even when a stair shortcut is shorter', () => {
+      const humanControls: Control[] = [
+        { id: 'hs', type: 'start', mapPosition: { x: 0, y: 0 } },
+        { id: 'ht', type: 'finish', mapPosition: { x: 300, y: 0 } },
+      ];
+
+      const humanNodes: Node[] = [
+        { id: 'h1', x: 100, y: 0 },
+        { id: 'h2', x: 200, y: 0 },
+        { id: 'hu', x: 0, y: 100 },
+        { id: 'hv', x: 300, y: 100 },
+      ];
+
+      const humanEdges: Edge[] = [
+        { from: 'hs', to: 'h1', label: '', oneWay: false },
+        { from: 'h1', to: 'h2', label: '', oneWay: false },
+        { from: 'h2', to: 'ht', label: '', oneWay: false },
+        { from: 'hs', to: 'hu', label: '', oneWay: false },
+        { from: 'hu', to: 'hv', label: 'A', oneWay: false, ignoreLength: true },
+        { from: 'hv', to: 'ht', label: '', oneWay: false },
+      ];
+
+      const analyzer = new RouteAnalyzer(humanControls, humanNodes, humanEdges, mapScale);
+
+      const humanRoute = analyzer.findHumanRouteBetweenControls('hs', 'ht');
+      expect(humanRoute).toBeDefined();
+      expect(humanRoute!.labels).toEqual([]);
+
+      const shortestRoute = analyzer.shortestRouteBetweenControls(humanControls[0], humanControls[1]);
+      expect(shortestRoute).toBeDefined();
+      expect(shortestRoute!.labels).toContain('A');
+      expect(humanRoute!.distance).toBeGreaterThan(shortestRoute!.distance);
+
+      const allRoutes = analyzer.findAllAlternativePathsBetweenControls('hs', 'ht', 20);
+      const allLabelSequences = new Set(allRoutes.map((r) => r.labels.join(',')));
+      expect(allLabelSequences.has('')).toBe(true);
+      expect(allLabelSequences.has('A')).toBe(true);
+      expect(allLabelSequences.has(humanRoute!.labels.join(','))).toBe(true);
+    });
+
+    it('finds a stair route with alternating forward/backward search and matches other analyzers', () => {
+      const humanControls: Control[] = [
+        { id: 'f', type: 'start', mapPosition: { x: 0, y: 0 } },
+        { id: 't', type: 'finish', mapPosition: { x: 300, y: 0 } },
+      ];
+
+      const humanNodes: Node[] = [
+        { id: 'sf', x: 50, y: 0 },
+        { id: 'm', x: 150, y: 0 },
+        { id: 'tt', x: 250, y: 0 },
+      ];
+
+      const humanEdges: Edge[] = [
+        { from: 'f', to: 'sf', label: '', oneWay: false },
+        { from: 'sf', to: 'm', label: 'A', oneWay: false, ignoreLength: true },
+        { from: 'm', to: 'tt', label: 'b', oneWay: true, ignoreLength: true },
+        { from: 'tt', to: 't', label: '', oneWay: false },
+      ];
+
+      const analyzer = new RouteAnalyzer(humanControls, humanNodes, humanEdges, mapScale);
+
+      const humanRoute = analyzer.findHumanRouteBetweenControls('f', 't');
+      expect(humanRoute).toBeDefined();
+      expect(humanRoute!.labels).toEqual(['A', 'b']);
+
+      const shortestRoute = analyzer.shortestRouteBetweenControls(humanControls[0], humanControls[1]);
+      expect(shortestRoute).toBeDefined();
+      expect(shortestRoute!.labels.join(',')).toBe(humanRoute!.labels.join(','));
+
+      const allRoutes = analyzer.findAllAlternativePathsBetweenControls('f', 't', 20);
+      const labelSequences = new Set(allRoutes.map((r) => r.labels.join(',')));
+      expect(labelSequences.has(humanRoute!.labels.join(','))).toBe(true);
     });
   });
 

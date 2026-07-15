@@ -16,6 +16,16 @@ import {
   type RecentFile,
 } from "@indoor-o-route-analysis/core";
 import { base64ToArrayBuffer } from "@indoor-o-route-analysis/core";
+import { SettingsProvider, useSettings } from "./settings-context";
+
+/**
+ * What `addRecentFileHandle` accepts: a real File System Access handle for
+ * locally opened/saved files, or a synthetic `{name, url}` identity record
+ * for events imported from a URL (e.g. a bundled example) — there's no
+ * handle to hold onto in that case, just enough info for the recent-files
+ * list entry.
+ */
+export type RecentFileIdentity = FileSystemFileHandle | { name: string; url: string };
 
 interface AppDataContextType {
   // Events
@@ -32,8 +42,7 @@ interface AppDataContextType {
 
   // Recent files
   recentFiles: RecentFile[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addRecentFileHandle: (handle: any) => Promise<void>;
+  addRecentFileHandle: (handle: RecentFileIdentity) => Promise<void>;
   clearRecentFilesList: () => Promise<void>;
 
   // Course selection (for course-setting and graph-editor)
@@ -57,23 +66,22 @@ interface AppDataContextType {
   saveCurrentEvent: () => Promise<void>;
   discardChanges: () => Promise<void>;
 
-  // Storage Persistence Setting
+  // Storage Persistence Setting (owned by SettingsContext; re-exposed here for
+  // backward compatibility with existing consumers of useAppData())
   persistToDB: boolean;
   setPersistToDB: (value: boolean) => void;
 
-  // Running Speed for Analysis (m/s)
+  // Running Speed for Analysis (m/s) (owned by SettingsContext)
   runningSpeed: number;
   setRunningSpeed: (value: number) => void;
 
-  // Route Analysis k value (max alternative routes)
+  // Route Analysis k value (max alternative routes) (owned by SettingsContext)
   routeAnalysisK: number;
   setRouteAnalysisK: (value: number) => void;
 
   // File System Access
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  fileHandle: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setFileHandle: (handle: any) => void;
+  fileHandle: FileSystemFileHandle | null;
+  setFileHandle: (handle: FileSystemFileHandle | null) => void;
 }
 
 const AppDataContext = createContext<AppDataContextType | null>(null);
@@ -83,24 +91,37 @@ const STORAGE_KEYS = {
   SELECTED_EVENT: "app-selected-event",
   SELECTED_COURSE: "app-selected-course",
   SELECTED_CONTROL: "app-selected-control",
-  PERSIST_DB: "app-persist-db",
-  RUNNING_SPEED: "app-running-speed",
-  ROUTE_ANALYSIS_K: "app-route-analysis-k",
 };
 
 function getEventMapId(event: EventData | null): string | undefined {
   return event?.raceCourses?.[0]?.maps?.[0]?.id;
 }
 
+/**
+ * Wraps SettingsProvider around the event/selection/file-session logic so
+ * that AppDataProviderInner can read persistToDB/runningSpeed/routeAnalysisK
+ * from useSettings() while still exposing them on useAppData() for backward
+ * compatibility with existing consumers.
+ */
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <SettingsProvider>
+      <AppDataProviderInner>{children}</AppDataProviderInner>
+    </SettingsProvider>
+  );
+}
+
+function AppDataProviderInner({ children }: { children: React.ReactNode }) {
+  const { persistToDB, setPersistToDB, runningSpeed, setRunningSpeed, routeAnalysisK, setRouteAnalysisK } =
+    useSettings();
+
   // Events state
   const [events, setEvents] = useState<EventData[]>([]);
   const [eventFilenames, setEventFilenames] = useState<Record<string, string>>({});
   const [selectedEventId, setSelectedEventIdState] = useState<string | null>(null);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [unsavedChanges, setUnsavedChanges] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [fileHandle, setFileHandle] = useState<any>(null);
+  const [fileHandle, setFileHandle] = useState<FileSystemFileHandle | null>(null);
 
   // PDF Data state (binary)
   const [currentPdfData, setCurrentPdfData] = useState<ArrayBuffer | null>(null);
@@ -117,48 +138,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   // Recent files state
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
-  // Persistence setting
-  const [persistToDB, setPersistToDBState] = useState(true);
-  // Running speed (m/s), default approx 6 min/km (2.78 m/s) -> let's use 3.33 m/s (5 min/km) as default or simply 3.0
-  const [runningSpeed, setRunningSpeedState] = useState(3.0);
-  // Route analysis k value (max alternative routes per leg)
-  const [routeAnalysisK, setRouteAnalysisKState] = useState(6);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PERSIST_DB);
-    if (saved !== null) {
-      setPersistToDBState(saved === "true");
-    }
-    const savedSpeed = localStorage.getItem(STORAGE_KEYS.RUNNING_SPEED);
-    if (savedSpeed !== null) {
-      const parsed = parseFloat(savedSpeed);
-      if (!isNaN(parsed) && parsed > 0) {
-        setRunningSpeedState(parsed);
-      }
-    }
-    const savedK = localStorage.getItem(STORAGE_KEYS.ROUTE_ANALYSIS_K);
-    if (savedK !== null) {
-      const parsed = parseInt(savedK, 10);
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= 1000) {
-        setRouteAnalysisKState(parsed);
-      }
-    }
-  }, []);
-
-  const setPersistToDB = useCallback((value: boolean) => {
-    setPersistToDBState(value);
-    localStorage.setItem(STORAGE_KEYS.PERSIST_DB, String(value));
-  }, []);
-
-  const setRunningSpeed = useCallback((value: number) => {
-    setRunningSpeedState(value);
-    localStorage.setItem(STORAGE_KEYS.RUNNING_SPEED, String(value));
-  }, []);
-
-  const setRouteAnalysisK = useCallback((value: number) => {
-    setRouteAnalysisKState(value);
-    localStorage.setItem(STORAGE_KEYS.ROUTE_ANALYSIS_K, String(value));
-  }, []);
+  // persistToDB/runningSpeed/routeAnalysisK now live in SettingsContext (see useSettings() above)
 
   const markAsSaved = useCallback(() => {
     setUnsavedChanges(false);
@@ -170,7 +150,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     getRecentFiles().then(setRecentFiles).catch(console.error);
   }, []);
 
-  const addRecentFileHandle = useCallback(async (handle: any) => {
+  const addRecentFileHandle = useCallback(async (handle: RecentFileIdentity) => {
     try {
       if (!handle) return;
       await addRecentFile(handle);

@@ -15,6 +15,7 @@ import {
   RefreshCw,
   LineDotRightHorizontal,
   Link,
+  Ruler,
 } from "lucide-react";
 import { renameAllNodes } from "@indoor-o-route-analysis/core";
 import { useAppData } from "@indoor-o-route-analysis/ui";
@@ -45,6 +46,8 @@ interface GraphEditorPropertiesPanelProps {
   onShowNormalEdgesChange: (show: boolean) => void;
   highlightDeadEnds: boolean;
   onHighlightDeadEndsChange: (highlight: boolean) => void;
+  showEdgeWeights: boolean;
+  onShowEdgeWeightsChange: (show: boolean) => void;
   onVerifyGraph: () => void;
   findings: GraphFinding[] | null;
   onSelectFinding: (finding: GraphFinding) => void;
@@ -66,6 +69,8 @@ export default function GraphEditorPropertiesPanel({
   onShowNormalEdgesChange,
   highlightDeadEnds,
   onHighlightDeadEndsChange,
+  showEdgeWeights,
+  onShowEdgeWeightsChange,
   onVerifyGraph,
   findings = null,
   onSelectFinding,
@@ -147,8 +152,12 @@ export default function GraphEditorPropertiesPanel({
 
     // Build a coordinate lookup for all nodes
     const nodeMap = new Map<string, { x: number; y: number }>();
-    controls.forEach((c) => nodeMap.set(c.id, c.mapPosition));
-    vertices.forEach((v) => nodeMap.set(v.id, { x: v.x, y: v.y }));
+    controls.forEach((c) => {
+      nodeMap.set(c.id, c.mapPosition);
+    });
+    vertices.forEach((v) => {
+      nodeMap.set(v.id, { x: v.x, y: v.y });
+    });
 
     const rows: string[] = ["from,to,weight,label"];
 
@@ -276,8 +285,12 @@ export default function GraphEditorPropertiesPanel({
 
     // Create map for node coordinates
     const nodeMap = new Map<string, { x: number; y: number }>();
-    controls.forEach((c) => nodeMap.set(c.id, c.mapPosition));
-    vertices.forEach((v) => nodeMap.set(v.id, { x: v.x, y: v.y }));
+    controls.forEach((c) => {
+      nodeMap.set(c.id, c.mapPosition);
+    });
+    vertices.forEach((v) => {
+      nodeMap.set(v.id, { x: v.x, y: v.y });
+    });
 
     let totalLength = 0;
     let ignoreLengthCount = 0;
@@ -394,6 +407,25 @@ export default function GraphEditorPropertiesPanel({
               {highlightDeadEnds
                 ? "Stop highlighting dead-end edges."
                 : "Highlight dead-end paths (edges leading to nodes with no onward route)."}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={showEdgeWeights ? "active" : "ghost"}
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onShowEdgeWeightsChange(!showEdgeWeights)}
+              >
+                <Ruler className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {showEdgeWeights
+                ? "Hide edge weight (distance) labels."
+                : "Show edge weight (distance) labels next to each edge."}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -670,13 +702,13 @@ export default function GraphEditorPropertiesPanel({
 
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="edge-teleport"
+                id="edge-map-segment-transition"
                 checked={properties.ignoreLength || false}
                 onCheckedChange={(checked) => handleUpdate({ ignoreLength: checked })}
                 className="border-primary/40 checked:bg-primary checked:border-primary h-5 w-5"
               />
-              <Label htmlFor="edge-teleport" className="text-xs text-muted-foreground cursor-pointer">
-                {"Ignore Length (teleport)"}
+              <Label htmlFor="edge-map-segment-transition" className="text-xs text-muted-foreground cursor-pointer">
+                {"Ignore Length (map-segment transition)"}
               </Label>
             </div>
 

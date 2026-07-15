@@ -6,7 +6,7 @@ import { useAppData } from "@indoor-o-route-analysis/ui";
 import { getActiveMap } from "@indoor-o-route-analysis/core";
 import type { Node } from "@indoor-o-route-analysis/core";
 import { usePdfUrl } from "@indoor-o-route-analysis/ui";
-import { calculateEventTrafficGenerator, EdgeTraffic, NodeTraffic } from "./analysis-logic";
+import { calculateEventTrafficGenerator, type EdgeTraffic, type NodeTraffic } from "./analysis-logic";
 import EventAnalysisPropertiesPanel from "./properties-panel";
 import type { EventAnalysisMapViewerHandle } from "./map-viewer";
 

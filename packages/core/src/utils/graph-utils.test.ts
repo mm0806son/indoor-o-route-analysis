@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { findDeadEndEdgeIds, edgeKey } from "./graph-utils";
+import {
+  findDeadEndEdgeIds,
+  edgeKey,
+  countOneWayEdgesInPath,
+  countIgnoreLengthEdgesInPath,
+  countAlternativeEdgesInPath,
+} from "./graph-utils";
 import type { Edge } from "../models";
 
 describe("findDeadEndEdgeIds", () => {
@@ -212,5 +218,70 @@ describe("findDeadEndEdgeIds", () => {
     expect(result.has(edgeKey("x", "b"))).toBe(true);
     expect(result.has(edgeKey("x", "c"))).toBe(true);
     expect(result.has(edgeKey("x", "d"))).toBe(true);
+  });
+});
+
+describe("countOneWayEdgesInPath", () => {
+  const edges: Edge[] = [
+    { from: "a", to: "b", label: "" },
+    { from: "b", to: "c", label: "", oneWay: true },
+    { from: "c", to: "d", label: "" },
+  ];
+  const findEdge = (from: string, to: string) =>
+    edges.find((e) => (e.from === from && e.to === to) || (!e.oneWay && e.from === to && e.to === from));
+
+  it("counts only the one-way edges traversed", () => {
+    expect(countOneWayEdgesInPath(["a", "b", "c", "d"], findEdge)).toBe(1);
+  });
+
+  it("returns 0 for a path with no one-way edges", () => {
+    expect(countOneWayEdgesInPath(["a", "b"], findEdge)).toBe(0);
+  });
+});
+
+describe("countIgnoreLengthEdgesInPath", () => {
+  const edges: Edge[] = [
+    { from: "a", to: "b", label: "" },
+    { from: "b", to: "c", label: "", ignoreLength: true },
+    { from: "c", to: "d", label: "" },
+  ];
+  const findEdge = (from: string, to: string) => edges.find((e) => e.from === from && e.to === to);
+
+  it("counts only the ignoreLength (stair) edges traversed", () => {
+    expect(countIgnoreLengthEdgesInPath(["a", "b", "c", "d"], findEdge)).toBe(1);
+  });
+
+  it("returns 0 for a path with no ignoreLength edges", () => {
+    expect(countIgnoreLengthEdgesInPath(["c", "d"], findEdge)).toBe(0);
+  });
+});
+
+describe("countAlternativeEdgesInPath", () => {
+  // Graph: A -> B -> C is the path; B also branches to X (an alternative not taken).
+  const nodeEdges = new Map<string, Edge[]>([
+    ["a", [{ from: "a", to: "b", label: "" }]],
+    ["b", [
+      { from: "b", to: "a", label: "" }, // reverse of the incoming edge — must be excluded
+      { from: "b", to: "c", label: "" }, // the path edge itself — must be excluded
+      { from: "b", to: "x", label: "" }, // the real alternative
+    ]],
+  ]);
+
+  it("counts a branch not taken as one alternative", () => {
+    const count = countAlternativeEdgesInPath(["a", "b", "c"], nodeEdges, new Set());
+    expect(count).toBe(1);
+  });
+
+  it("excludes dead-end alternatives", () => {
+    const count = countAlternativeEdgesInPath(["a", "b", "c"], nodeEdges, new Set([edgeKey("b", "x")]));
+    expect(count).toBe(0);
+  });
+
+  it("excludes the incoming edge even when it also appears in nodeEdges", () => {
+    // Path a -> b -> c with only the reverse-of-incoming edge present at b.
+    const onlyIncoming = new Map<string, Edge[]>([
+      ["b", [{ from: "b", to: "a", label: "" }]],
+    ]);
+    expect(countAlternativeEdgesInPath(["a", "b", "c"], onlyIncoming, new Set())).toBe(0);
   });
 });
