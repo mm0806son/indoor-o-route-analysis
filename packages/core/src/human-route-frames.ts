@@ -125,6 +125,7 @@ export function traceToFrames(result: HumanRouteResult): HumanRouteFrame[] {
   frames.push({
     index: frames.length,
     kind: "closure",
+    cluster: acceptedMeeting?.cluster,
     ...snapshot(),
     planLabels: [...result.forwardLabels, ...result.backwardLabels],
     // Reuses the memory snapshot shape to carry the *final* (complete, not

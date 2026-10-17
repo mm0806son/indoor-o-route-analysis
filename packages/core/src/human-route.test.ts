@@ -314,3 +314,47 @@ describe("findHumanRoute — configurable candidate ordering (HumanModelParams)"
     expect(result!.trace.steps[0].candidates[0].label).toBe("Y");
   });
 });
+
+describe("findHumanRoute — directed corridor seams", () => {
+  const nodes = "SABCDEFGT".split("").map((id, i) => node(id, i * 10, 0));
+  const corridor = (from: string, to: string): Edge => ({ from, to, label: "", oneWay: true });
+  const stair = (from: string, to: string, label: string): Edge => ({ from, to, label, oneWay: true });
+
+  it.each([
+    { name: "before a stair", edges: [corridor("S", "A"), stair("A", "T", "Y")] },
+    { name: "after a stair", edges: [stair("S", "A", "Y"), corridor("A", "T")] },
+    { name: "between stairs", edges: [stair("S", "A", "X"), corridor("A", "B"), stair("B", "T", "Y")] },
+    { name: "multiple seams and a cycle", edges: [corridor("S", "A"), corridor("A", "B"), corridor("B", "A"), corridor("B", "C"), stair("C", "T", "Y")] },
+    { name: "multiple entrances", edges: [corridor("S", "A"), corridor("S", "B"), corridor("A", "C"), corridor("B", "C"), stair("C", "T", "Y")] },
+    { name: "target-side backward glance", edges: [stair("S", "A", "X"), stair("A", "B", "Y"), corridor("B", "C"), corridor("C", "T")] },
+  ])("walks $name legally without fictitious stairs", ({ edges }) => {
+    const ctx = makeContext(nodes, edges);
+    const result = findHumanRoute("S", "T", ctx);
+    expect(result).not.toBeNull();
+    for (let i = 1; i < result!.path.length; i++) {
+      expect(edges.some(e => e.from === result!.path[i - 1] && e.to === result!.path[i])).toBe(true);
+    }
+    const expectedLabels = edges.filter(e => e.label).map(e => e.label);
+    expect([...result!.forwardLabels, ...result!.backwardLabels]).toEqual(expectedLabels);
+    for (const step of result!.trace.steps) {
+      expect(step.candidates.every(c => !!c.label)).toBe(true);
+      expect(step.memory!.forwardChain.every(Boolean)).toBe(true);
+      expect(step.memory!.backwardChain.every(Boolean)).toBe(true);
+    }
+    expect(findHumanRoute("T", "S", ctx)).toBeNull();
+  });
+
+  it("includes corridor seams in the candidate's real walking path", () => {
+    const result = findHumanRoute("S", "T", makeContext(nodes, [
+      corridor("S", "A"), corridor("A", "B"), stair("B", "T", "Y"),
+    ]));
+    expect(result!.trace.steps[0].candidates[0].path).toEqual(["S", "A", "B"]);
+    expect(result!.trace.steps[0].candidates[0].distanceMeters).toBe(20);
+  });
+
+  it("does not reach a stair across a reversed corridor", () => {
+    expect(findHumanRoute("S", "T", makeContext(nodes, [
+      corridor("A", "S"), stair("A", "T", "Y"),
+    ]))).toBeNull();
+  });
+});

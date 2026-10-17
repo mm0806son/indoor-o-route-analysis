@@ -49,7 +49,7 @@ export interface HumanRouteOverlayModel {
    * The two exact nodes that join into one continuous route at closure: where
    * the tracking side's path arrives, and where the backtracking side's path
    * starts. Often the same node; when they differ there's an (undrawn)
-   * same-floor walk connecting them within the meeting cluster.
+   * same-floor walk connecting them, possibly across directed corridor seams.
    */
   meetingConnector?: { from: string; to: string };
 }
@@ -70,7 +70,7 @@ export function buildHumanRouteOverlay(frame: HumanRouteFrame): HumanRouteOverla
   if (frame.kind === "meeting-rejected") {
     meetingCluster = frame.cluster;
   } else if (frame.kind === "closure") {
-    meetingCluster = frame.visitedByTracking.find((c) => frame.visitedByBacktracking.includes(c));
+    meetingCluster = frame.cluster ?? frame.visitedByTracking.find((c) => frame.visitedByBacktracking.includes(c));
   }
 
   const forwardPath = frame.memory?.forwardPath;
