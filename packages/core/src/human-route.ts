@@ -108,6 +108,10 @@ export interface HumanRouteTraceStep {
   side: HumanRouteSide;
   cluster: string;
   candidates: HumanRouteCandidate[];
+  /** Actual choice in candidates; an immediate connection can override ranking. */
+  chosenCandidateIndex?: number;
+  /** This choice joins the other search frontier immediately. */
+  completesRoute?: boolean;
   /** Absent only in hand-built fixtures that don't exercise the real search. */
   memory?: HumanRouteMemorySnapshot;
   /** The specific node the human is standing at when considering these candidates (may differ from `cluster`, which is a Union-Find representative, not a position). */
@@ -513,6 +517,7 @@ export function findHumanRoute(
         order: traceOrder++,
         side: side === "forward" ? "tracking" : "backtracking",
         cluster: current.cluster,
+        chosenCandidateIndex: 0,
         candidates: candidates.map((c) => ({
           label: c.edge.label,
           toCluster: c.nextCluster,
@@ -534,7 +539,12 @@ export function findHumanRoute(
 
       if (otherVisited.has(candidate.nextCluster)) {
         const route = buildRouteFromMeeting(candidate.nextCluster);
-        if (route) return route;
+        if (route) {
+          const step = traceSteps[traceSteps.length - 1];
+          step.chosenCandidateIndex = i;
+          step.completesRoute = true;
+          return route;
+        }
       }
     }
 

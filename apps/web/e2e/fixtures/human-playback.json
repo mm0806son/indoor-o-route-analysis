@@ -1,0 +1,109 @@
+{
+  "id": "human-playback-regression",
+  "name": "Human playback regression",
+  "country": "",
+  "startTime": {
+    "date": "2026-01-01"
+  },
+  "raceCourses": [
+    {
+      "courses": [
+        {
+          "id": "course",
+          "name": "Playback",
+          "mapId": "map",
+          "controls": [
+            {
+              "controlId": "S",
+              "type": "control"
+            },
+            {
+              "controlId": "T",
+              "type": "control"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "id": "S",
+          "type": "control",
+          "mapPosition": {
+            "x": 20,
+            "y": 30
+          }
+        },
+        {
+          "id": "T",
+          "type": "control",
+          "mapPosition": {
+            "x": 100,
+            "y": 60
+          }
+        }
+      ],
+      "vertices": [
+        {
+          "id": "S",
+          "x": 20,
+          "y": 30
+        },
+        {
+          "id": "F",
+          "x": 25,
+          "y": 60
+        },
+        {
+          "id": "A",
+          "x": 60,
+          "y": 30
+        },
+        {
+          "id": "T",
+          "x": 100,
+          "y": 60
+        }
+      ],
+      "edges": [
+        {
+          "from": "S",
+          "to": "F",
+          "label": "f",
+          "oneWay": true
+        },
+        {
+          "from": "S",
+          "to": "A",
+          "label": ""
+        },
+        {
+          "from": "A",
+          "to": "T",
+          "label": "Y",
+          "oneWay": true
+        }
+      ],
+      "maps": [
+        {
+          "id": "map",
+          "scale": 1000,
+          "layout": "horizontal",
+          "image": {
+            "width": 140,
+            "height": 100,
+            "encodedData": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCAzOTYuODUgMjgzLjQ2XSAvUmVzb3VyY2VzIDw8ID4+IC9Db250ZW50cyA0IDAgUiA+PgplbmRvYmoKNCAwIG9iago8PCAvTGVuZ3RoIDAgPj4Kc3RyZWFtCgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA1CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDIyNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDUgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjI3NAolJUVPRgo=",
+            "mediaType": "application/pdf"
+          },
+          "mapPositionTopLeft": {
+            "x": 0,
+            "y": 0
+          },
+          "mapPositionBottomRight": {
+            "x": 140,
+            "y": 100
+          }
+        }
+      ]
+    }
+  ]
+}

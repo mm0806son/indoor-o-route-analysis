@@ -20,7 +20,7 @@ export interface HumanRouteOverlayCandidate {
   path?: string[];
   /** 1-based preference order; 1 is the nearest/first-tried candidate. */
   rank: number;
-  /** True only for the top-ranked candidate - the one the human tries next. */
+  /** True for the actual choice recorded by the search. */
   chosen: boolean;
   /**
    * A distinct color for this candidate's rank, shared by its path line and
@@ -62,7 +62,7 @@ export function buildHumanRouteOverlay(frame: HumanRouteFrame): HumanRouteOverla
     toNode: candidate.toNode,
     path: candidate.path,
     rank: i + 1,
-    chosen: i === 0,
+    chosen: i === (frame.chosenCandidateIndex ?? 0),
     color: rankColors[String(i + 1)],
   }));
 
@@ -73,8 +73,8 @@ export function buildHumanRouteOverlay(frame: HumanRouteFrame): HumanRouteOverla
     meetingCluster = frame.visitedByTracking.find((c) => frame.visitedByBacktracking.includes(c));
   }
 
-  const forwardPath = frame.memory?.forwardPath;
-  const backwardPath = frame.memory?.backwardPath;
+  const forwardPath = frame.finalPaths?.forwardPath ?? frame.memory?.forwardPath;
+  const backwardPath = frame.finalPaths?.backwardPath ?? frame.memory?.backwardPath;
   const meetingConnector = frame.kind === "closure" && forwardPath?.length && backwardPath?.length
     ? { from: forwardPath[forwardPath.length - 1], to: backwardPath[0] }
     : undefined;
