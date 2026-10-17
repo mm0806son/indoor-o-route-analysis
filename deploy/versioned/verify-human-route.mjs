@@ -9,18 +9,21 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => Reflect.deleteProperty(window, 'showOpenFilePicker'));
-  await page.goto(`${base}/labs?version=1017-human-route`);
-  await page.getByLabel('应用版本').waitFor();
-  for (const release of ['1017-stairs', '0804b', '1017-human-route']) {
-    await page.getByLabel('应用版本').selectOption(release);
+  await page.goto(`${base}/labs?version=0.2.4`);
+  await page.getByLabel('Application version').waitFor();
+  for (const release of ['0804b', '0.2.4']) {
+    await page.getByLabel('Application version').selectOption(release);
     await page.waitForURL(url => url.searchParams.get('version') === release);
-    await page.getByLabel('应用版本').waitFor();
+    await page.getByLabel('Application version').waitFor();
     assert.equal((await (await page.request.get(`${base}/__releases/current`)).json()).release, release);
   }
   await page.goto(`${base}/labs`);
-  await page.getByLabel('应用版本').waitFor();
-  assert.equal(await page.getByLabel('应用版本').inputValue(), '1017-human-route');
-  assert.equal((await (await page.request.get(`${base}/version.json`)).json()).version, '0.2.3');
+  await page.getByLabel('Application version').waitFor();
+  assert.equal(await page.getByLabel('Application version').inputValue(), '0.2.4');
+  assert.equal((await (await page.request.get(`${base}/version.json`)).json()).version, '0.2.4');
+  await expect(page.getByRole('button', { name: 'Stairs', exact: true })).toHaveCount(0);
+  assert.deepEqual(await page.getByLabel('Application version').locator('option').evaluateAll(options => options.map(o => o.value)), ['0.2.4', '0804b']);
+  assert.ok(!/\p{Script=Han}/u.test(await page.locator('body').innerText()), 'Application UI must be in English');
   if (process.env.TEST_EVENT_FILE) {
     await page.locator('button:has(svg.lucide-menu)').click();
     const choosing = page.waitForEvent('filechooser');
@@ -129,7 +132,7 @@ try {
     console.log('PASS: Wangfujing MW21E 2 → 3, route, playback, export and Route Analysis');
   }
   assert.deepEqual(errors, []);
-  console.log('PASS: three release versions, persistence, metadata, zero browser errors');
+  console.log('PASS: both release versions, persistence, metadata, zero browser errors');
 } finally {
   await browser.close();
 }

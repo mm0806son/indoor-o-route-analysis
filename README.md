@@ -77,3 +77,7 @@ See the `skills` folder.
 ## Self-improvement loop
 
 Claude Code can run autonomous improvement iterations on this repo via the `/self-improve [area]` skill (repeat with `/loop /self-improve`). Specialist agents live in `.claude/agents/`, the protocol in `.claude/skills/`, and the backlog/log in `TASKS.md`. Areas: algorithms, architecture, security, maintainability, docs, tests, features.
+
+## Release 0.2.4
+
+Accepted human-route planning and playback fixes are included, with an English version selector. The experimental Stairs view is not included. See [release notes and deployment](docs/release-0.2.4.md).
