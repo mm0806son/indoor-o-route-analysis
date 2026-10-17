@@ -7,7 +7,7 @@
     if (document.getElementById('indoor-release-picker')) return;
     const label = document.createElement('label');
     label.id = 'indoor-release-picker';
-    label.style.cssText = 'position:fixed;bottom:8px;right:12px;z-index:9999;background:#171717;color:#eee;border:1px solid #555;border-radius:6px;padding:4px 8px;font:12px system-ui;display:flex;gap:6px;align-items:center';
+    label.style.cssText = 'position:fixed;bottom:8px;left:12px;z-index:9999;background:#171717;color:#eee;border:1px solid #555;border-radius:6px;padding:4px 8px;font:12px system-ui;display:flex;gap:6px;align-items:center';
     label.append('版本');
     const select = document.createElement('select');
     select.setAttribute('aria-label', '应用版本');
