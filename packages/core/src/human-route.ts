@@ -312,6 +312,29 @@ export function findHumanRoute(
     }
   }
 
+  // Directed corridor reachability extends a glance without turning corridors
+  // into stairs or merging regions that cannot be traversed both ways.
+  const corridorOut = new Map<string, Set<string>>();
+  const corridorIn = new Map<string, Set<string>>();
+  for (const [from, links] of unlabeledAdj) {
+    for (const { to } of links) {
+      const a = uf.find(from), b = uf.find(to);
+      if (a === b) continue;
+      if (!corridorOut.has(a)) corridorOut.set(a, new Set());
+      if (!corridorIn.has(b)) corridorIn.set(b, new Set());
+      corridorOut.get(a)!.add(b);
+      corridorIn.get(b)!.add(a);
+    }
+  }
+  const reachableClusters = (cluster: string, backward: boolean): Set<string> => {
+    const reached = new Set([cluster]);
+    const adjacency = backward ? corridorIn : corridorOut;
+    for (const current of reached) {
+      for (const next of adjacency.get(current) ?? []) reached.add(next);
+    }
+    return reached;
+  };
+
   const fromCluster = uf.find(fromNodeId);
   const toCluster = uf.find(toNodeId);
 
@@ -395,6 +418,7 @@ export function findHumanRoute(
 
   const buildRouteFromMeeting = (
     meetingCluster: string,
+    backwardMeetingCluster = meetingCluster,
   ): { path: string[]; forwardLabels: string[]; backwardLabels: string[] } | undefined => {
     const forwardEdges: ClusterEdge[] = [];
     {
@@ -413,7 +437,7 @@ export function findHumanRoute(
 
     const backwardEdges: ClusterEdge[] = [];
     {
-      let c = meetingCluster;
+      let c = backwardMeetingCluster;
       while (c !== toCluster) {
         const p = backwardParent.get(c);
         if (!p) return undefined;
@@ -481,14 +505,15 @@ export function findHumanRoute(
       backwardActiveNode = current.node;
     }
 
+    const reachable = reachableClusters(current.cluster, side === "backward");
     const candidatesRaw = side === "forward"
-      ? (outAdj.get(current.cluster) || []).map((edge) => ({
+      ? ([...reachable].flatMap((cluster) => outAdj.get(cluster) ?? [])).map((edge) => ({
           edge,
           nextCluster: edge.toCluster,
           nextNode: edge.toNode,
           reachable: findUnlabeled(current.node, edge.fromNode),
         }))
-      : (inAdj.get(current.cluster) || []).map((edge) => ({
+      : ([...reachable].flatMap((cluster) => inAdj.get(cluster) ?? [])).map((edge) => ({
           edge,
           nextCluster: edge.fromCluster,
           nextNode: edge.fromNode,
@@ -532,8 +557,14 @@ export function findHumanRoute(
       parentMap.set(candidate.nextCluster, { prevCluster: current.cluster, edge: candidate.edge });
       stack.push({ cluster: candidate.nextCluster, node: candidate.nextNode, viaLabel: candidate.edge.label });
 
-      if (otherVisited.has(candidate.nextCluster)) {
-        const route = buildRouteFromMeeting(candidate.nextCluster);
+      // The two stair chains may meet through a directed corridor instead
+      // of in the very same bidirectional region. Stitching checks the actual
+      // walking direction and retains the corridor in the final path.
+      for (const cluster of reachableClusters(candidate.nextCluster, side === "backward")) {
+        if (!otherVisited.has(cluster)) continue;
+        const route = side === "forward"
+          ? buildRouteFromMeeting(candidate.nextCluster, cluster)
+          : buildRouteFromMeeting(cluster, candidate.nextCluster);
         if (route) return route;
       }
     }

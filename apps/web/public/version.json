@@ -1,0 +1,7 @@
+{
+  "version": "0.2.1",
+  "release": "1017-human-route",
+  "features": [
+    "Human route directed corridor reachability"
+  ]
+}
