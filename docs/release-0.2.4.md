@@ -40,3 +40,22 @@ Earlier `human-route-*` documents describe historical acceptance builds, some co
 ## Release verification results
 
 On 2026-10-18, the clean release passed 15 web tests (including the HTTP UUID regression), 90 related core tests, core typechecking, and the production build/typecheck/static export. Browser acceptance against the packaged image passed the real configured Wangfujing MW21E 2 → 3 sequence, both release choices, English initial UI and preference persistence with zero runtime errors. The image has neither a Stairs page nor a `1017-stairs` release directory. Source comparison against the previous main confirms no changes to stair-related models, editors, routes or navigation.
+
+## Production deployment (2026-10-18)
+
+Production runs image `indoor-o-route-analysis:0.2.4` in container `indoor-o-route-analysis`, bound to `100.65.222.38:18081`, with restart policy `unless-stopped`. Open `http://100.65.222.38:18081/labs?version=0.2.4`. The English version picker retains `0804b`; direct browser rollback is available at `http://100.65.222.38:18081/labs?version=0804b`.
+
+Only two route-analysis environments remain running: production on 18081 and the existing development environment on 18082. The separate instances on 18080 and 18083 are stopped with automatic restart disabled. The unaccepted Stairs feature remains confined to development.
+
+The previous production container is preserved, stopped, as `indoor-o-route-analysis-0804b-backup-20261018`, with automatic restart disabled. For a full service rollback, stop and preserve the current container, then restore the backup:
+
+```sh
+docker stop indoor-o-route-analysis
+docker rename indoor-o-route-analysis indoor-o-route-analysis-024-rollback-backup
+docker update --restart=no indoor-o-route-analysis-024-rollback-backup
+docker rename indoor-o-route-analysis-0804b-backup-20261018 indoor-o-route-analysis
+docker update --restart=unless-stopped indoor-o-route-analysis
+docker start indoor-o-route-analysis
+```
+
+Production browser acceptance passed at 1440 × 731 CSS pixels with device scale 1.5 (2160 × 1097 screenshot) and at 2160 × 1097 CSS pixels with device scale 1. Both runs covered every real Wangfujing MW21E 2 → 3 playback frame, forward/backward/keyboard/autoplay, explanation visibility, final-route visibility, export, ordinary Route Analysis, release switching and preference persistence, with zero browser runtime errors.
