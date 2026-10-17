@@ -1,5 +1,7 @@
 "use client"
 
+import type { LabsDisplayedRoute } from "../displayed-route";
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@indoor-o-route-analysis/ui";
 import { Input } from "@indoor-o-route-analysis/ui";
@@ -27,7 +29,7 @@ interface AnalysisResult {
 
 interface MostDifficultLegsPanelProps {
   mode: MostDifficultLegsMode;
-  onRouteSelect: (route: { path: string[], distance: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null) => void;
+  onRouteSelect: (route: LabsDisplayedRoute | null) => void;
 }
 
 /**

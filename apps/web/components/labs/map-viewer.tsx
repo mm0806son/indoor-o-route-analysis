@@ -1,5 +1,7 @@
 "use client";
 
+import type { LabsDisplayedRoute } from "./displayed-route";
+
 import React, { useMemo, useState, useEffect } from "react";
 import MapViewer, { type MapViewerState, type MapViewerController, eventPosToMultiPagePixels } from "@/components/map-viewer";
 import { useAppData } from "@indoor-o-route-analysis/ui";
@@ -23,7 +25,7 @@ interface LabsMapViewerProps {
   map?: MapData;
   pdfUrl: string | null;
   scale: number;
-  displayedRoute?: { path: string[], distance?: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null;
+  displayedRoute?: LabsDisplayedRoute | null;
   humanRouteOverlay?: HumanRouteOverlayState | null;
   clusteredGraph?: ClusteredGraphState | null;
   showNodes?: boolean;
@@ -46,7 +48,7 @@ const MapOverlay = ({
   showEdges,
 }: {
   mapState: MapViewerState,
-  displayedRoute?: { path: string[], distance?: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null,
+  displayedRoute?: LabsDisplayedRoute | null,
   humanRouteOverlay?: HumanRouteOverlayState | null,
   clusteredGraph?: ClusteredGraphState | null,
   controller: MapViewerController | null,
@@ -67,7 +69,7 @@ const MapOverlay = ({
     }
 
     // Check if this is a new route selection
-    if (lastPannedRouteRef.current === displayedRoute) {
+    if (lastPannedRouteRef.current?.path === displayedRoute.path) {
         return;
     }
 
@@ -292,9 +294,8 @@ const MapOverlay = ({
           />
         )}
         {legLine}
-        {routePolylines}
-        {startCircle}
-        {endCircle}
+        {displayedRoute?.showPath !== false && <g data-testid="labs-route-path">{routePolylines}</g>}
+        <g data-testid="labs-leg-controls">{startCircle}{endCircle}</g>
     </svg>
   );
 };

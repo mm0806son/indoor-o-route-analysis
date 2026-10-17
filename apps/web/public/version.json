@@ -1,5 +1,5 @@
 {
-  "version": "0.2.2",
+  "version": "0.2.3",
   "release": "1017-human-route",
   "features": [
     "Directed corridors and consistent human-route playback"

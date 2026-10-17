@@ -1,5 +1,7 @@
 "use client"
 
+import type { LabsDisplayedRoute } from "./displayed-route";
+
 import { useState } from "react";
 import { Button } from "@indoor-o-route-analysis/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@indoor-o-route-analysis/ui";
@@ -15,7 +17,7 @@ import ClusteredGraphPanel, { type ClusteredGraphState } from "./clustered-graph
 type Lab = "most-difficult-controls" | "most-difficult-nodes" | "human-thinking" | "clustered-graph";
 
 interface LabsPropertiesPanelProps {
-  onRouteSelect: (route: { path: string[], distance: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null) => void;
+  onRouteSelect: (route: LabsDisplayedRoute | null) => void;
   onHumanRouteOverlayChange?: (overlay: HumanRouteOverlayState | null) => void;
   onClusteredGraphChange?: (state: ClusteredGraphState | null) => void;
   showNodes: boolean;
@@ -108,7 +110,7 @@ export default function LabsPropertiesPanel({ onRouteSelect, onHumanRouteOverlay
         </Select>
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {lab === "most-difficult-controls" && (
           <MostDifficultLegsPanel mode="controls" onRouteSelect={onRouteSelect} />
         )}

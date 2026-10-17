@@ -1,5 +1,7 @@
 "use client"
 
+import type { LabsDisplayedRoute } from "./displayed-route";
+
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useAppData } from "@indoor-o-route-analysis/ui";
@@ -20,7 +22,7 @@ export default function LabsPage() {
 
   // State to hold the route to display on the map
   // This is set when the user selects a row in the properties panel
-  const [displayedRoute, setDisplayedRoute] = useState<{ path: string[], distance?: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null>(null);
+  const [displayedRoute, setDisplayedRoute] = useState<LabsDisplayedRoute | null>(null);
   const [humanRouteOverlay, setHumanRouteOverlay] = useState<HumanRouteOverlayState | null>(null);
   const [clusteredGraph, setClusteredGraph] = useState<ClusteredGraphState | null>(null);
 

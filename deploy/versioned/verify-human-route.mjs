@@ -5,7 +5,7 @@ const { chromium, expect } = require('@playwright/test');
 const base = process.env.RELEASE_URL || 'http://100.65.222.38:18083';
 const browser = await chromium.launch({ headless: true });
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1400 } });
+  const page = await browser.newPage({ viewport: { width: Number(process.env.VIEWPORT_WIDTH || 1440), height: Number(process.env.VIEWPORT_HEIGHT || 731) }, deviceScaleFactor: Number(process.env.DEVICE_SCALE || 1.5) });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => Reflect.deleteProperty(window, 'showOpenFilePicker'));
@@ -20,7 +20,7 @@ try {
   await page.goto(`${base}/labs`);
   await page.getByLabel('应用版本').waitFor();
   assert.equal(await page.getByLabel('应用版本').inputValue(), '1017-human-route');
-  assert.equal((await (await page.request.get(`${base}/version.json`)).json()).version, '0.2.2');
+  assert.equal((await (await page.request.get(`${base}/version.json`)).json()).version, '0.2.3');
   if (process.env.TEST_EVENT_FILE) {
     await page.locator('button:has(svg.lucide-menu)').click();
     const choosing = page.waitForEvent('filechooser');
@@ -70,7 +70,22 @@ try {
     assert.ok(!bundle.explanation.some(e => /try.* f\.|worked out from the control/.test(e.text)));
 
     const checkFrame = async index => {
-      await expect(page.locator('[aria-current="step"]')).toHaveText(bundle.explanation[index].text);
+      const active = page.locator('[aria-current="step"]');
+      await expect(active).toHaveText(bundle.explanation[index].text);
+      // Visibility must include clipping, not merely DOM presence or nonzero size.
+      await expect.poll(async () => active.evaluate(el => {
+        const r = el.getBoundingClientRect();
+        const viewport = el.closest('[data-radix-scroll-area-viewport]')?.getBoundingClientRect();
+        return !!viewport && r.height > 0 && r.top >= viewport.top - 1 && r.bottom <= viewport.bottom + 1
+          && r.top >= 0 && r.bottom <= window.innerHeight;
+      })).toBe(true);
+      const details = await page.getByTestId('human-playback-details').boundingBox();
+      assert.ok(details.height >= 120, 'Explanation area must retain usable height');
+      await expect(page.getByTestId('labs-route-path')).toHaveCount(index === 2 ? 1 : 0);
+      if (index === 2) await expect(page.getByTestId('labs-route-path').locator('polyline').first()).toBeAttached();
+      await expect(page.getByTestId('labs-leg-controls').locator('circle').first()).toBeAttached();
+      await expect(page.getByTitle('Next step (→)')).toBeInViewport();
+      await expect(page.getByRole('button', { name: 'JSON', exact: true })).toBeInViewport();
       await expect(page.getByText('Short-term memory', { exact: true })).toHaveCount(index === 1 ? 1 : 0);
       const selected = page.locator('[data-human-candidate][data-chosen="true"]');
       if (index === 1) {
@@ -92,6 +107,8 @@ try {
     await page.getByTitle('Next step (→)').click();
     await checkFrame(2);
     await expect(page.getByTitle('Next step (→)')).toBeDisabled();
+    // Scrolling to the summary must not prevent the next active explanation coming into view.
+    await page.getByText('Cognitive effort score', { exact: true }).scrollIntoViewIfNeeded();
     await page.getByTitle('Previous step (←)').click();
     await checkFrame(1);
     await page.keyboard.press('ArrowRight');
@@ -100,6 +117,8 @@ try {
     await page.keyboard.press('ArrowLeft');
     await checkFrame(0);
     await page.getByTitle('Play (Space)').click();
+    await expect(page.getByText('Step 2 / 3', { exact: true })).toBeVisible({ timeout: 10000 });
+    await checkFrame(1);
     await expect(page.getByText('Step 3 / 3', { exact: true })).toBeVisible({ timeout: 10000 });
     await checkFrame(2);
     await page.getByRole('button', { name: 'Route Analysis', exact: true }).click();

@@ -1,5 +1,8 @@
 "use client"
 
+import type { LabsDisplayedRoute } from "../displayed-route";
+
+import { playbackRoute } from "./playback-route";
 import { ShortTermMemory } from "./short-term-memory";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
@@ -34,7 +37,7 @@ export interface HumanRouteOverlayState {
 }
 
 interface HumanThinkingPanelProps {
-  onRouteSelect: (route: { path: string[], distance: number, fromLabel?: string, toLabel?: string, forwardSegmentCount?: number } | null) => void;
+  onRouteSelect: (route: LabsDisplayedRoute | null) => void;
   onOverlayChange?: (overlay: HumanRouteOverlayState | null) => void;
 }
 
@@ -147,16 +150,7 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
     setResult(humanResult);
     setStepIndex(0);
     setIsPlaying(false);
-    onRouteSelect({
-      path: humanResult.route.path,
-      distance: humanResult.route.distance,
-      fromLabel: selectedLeg.fromLabel,
-      toLabel: selectedLeg.toLabel,
-      // Segments before this index are the tracking side's own corridor
-      // stretches (one per forward stair crossing, see labs/map-viewer.tsx's
-      // ignoreLength-based segment split); the rest belong to backtracking.
-      forwardSegmentCount: humanResult.sameFloor ? undefined : humanResult.forwardLabels.length,
-    });
+
 
     const fromNodeId = analyzer.getNodeIdForControl(selectedLeg.fromControlId);
     const toNodeId = analyzer.getNodeIdForControl(selectedLeg.toControlId);
@@ -205,7 +199,7 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
     const container = explanationListRef.current;
     if (!container) return;
     const active = container.querySelector<HTMLElement>(`[data-step-index="${stepIndex}"]`);
-    active?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    active?.scrollIntoView({ block: "nearest", behavior: "instant" });
   }, [stepIndex]);
 
   // Playback shortcuts: space = play/pause, arrows = step. Matches the
@@ -253,6 +247,12 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
 
   const currentFrame = frames[stepIndex];
 
+  useEffect(() => {
+    onRouteSelect(result && selectedLeg
+      ? playbackRoute(result, currentFrame, { fromLabel: selectedLeg.fromLabel, toLabel: selectedLeg.toLabel })
+      : null);
+  }, [result, currentFrame, selectedLeg, onRouteSelect]);
+
   // Live map overlay for the current playback step: the current tracking/
   // backtracking routes, ranked candidate badges, and the meeting marker.
   // Only meaningful for multi-floor legs (result.clusterOf is absent for
@@ -269,8 +269,8 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
   useEffect(() => () => onOverlayChange?.(null), [onOverlayChange]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="p-4 border-b border-border space-y-3">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <div className="p-4 shrink-0 border-b border-border space-y-3">
         {courses.length > 1 && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Course</label>
@@ -298,7 +298,7 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
       {result && effort && (
         <>
           {/* Playback controls */}
-          <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/20">
+          <div className="flex shrink-0 items-center gap-1 p-2 border-b border-border bg-muted/20">
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
               onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
@@ -338,7 +338,7 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
           </div>
 
           {/* Explanation log */}
-          <ScrollArea className="flex-1 w-full" ref={explanationListRef}>
+          <ScrollArea className="flex-1 min-h-0 w-full" ref={explanationListRef} data-testid="human-playback-details">
             <div className="p-3 space-y-2">
               {explanation.map((message) => {
                 const Icon = frameLogIcon(frames[message.frameIndex]);
@@ -360,39 +360,40 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
                 );
               })}
             </div>
+
+            {currentFrame?.kind === "closure" && currentFrame.planLabels && currentFrame.planLabels.length > 0 && (
+              <div className="px-3 py-2 border-t border-border text-sm font-mono tracking-wide text-center">
+                {currentFrame.planLabels.join(" · ")}
+              </div>
+            )}
+
+            <ShortTermMemory frame={currentFrame} />
+
+            {/* Thinking-effort summary */}
+            <div className="p-3 border-t border-border text-xs space-y-1">
+              <div className="font-medium text-sm mb-1">Thinking effort</div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted-foreground">
+                <span>Same floor</span><span className="text-right">{effort.sameFloor ? "yes" : "no"}</span>
+                <span>Mental steps</span><span className="text-right">{effort.mentalSteps}</span>
+                <span>Candidates evaluated</span><span className="text-right">{effort.candidatesEvaluated}</span>
+                <span>Rejected meetings</span><span className="text-right">{effort.rejectedMeetings}</span>
+                <span>Plan depth</span><span className="text-right">{effort.planDepth}</span>
+                <span>Peak memory load</span><span className="text-right">{effort.memoryLoad.peak}</span>
+                {effort.humanOptimalGap !== undefined && (
+                  <>
+                    <span>Human / optimal length</span>
+                    <span className="text-right">{effort.humanOptimalGap.toFixed(2)}×</span>
+                  </>
+                )}
+                <span className="font-medium text-foreground">Cognitive effort score</span>
+                <span className="text-right font-medium text-foreground">{effort.cognitiveEffortScore.toFixed(1)}</span>
+              </div>
+            </div>
+
           </ScrollArea>
 
-          {currentFrame?.kind === "closure" && currentFrame.planLabels && currentFrame.planLabels.length > 0 && (
-            <div className="px-3 py-2 border-t border-border text-sm font-mono tracking-wide text-center">
-              {currentFrame.planLabels.join(" · ")}
-            </div>
-          )}
-
-          <ShortTermMemory frame={currentFrame} />
-
-          {/* Thinking-effort summary */}
-          <div className="p-3 border-t border-border text-xs space-y-1">
-            <div className="font-medium text-sm mb-1">Thinking effort</div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted-foreground">
-              <span>Same floor</span><span className="text-right">{effort.sameFloor ? "yes" : "no"}</span>
-              <span>Mental steps</span><span className="text-right">{effort.mentalSteps}</span>
-              <span>Candidates evaluated</span><span className="text-right">{effort.candidatesEvaluated}</span>
-              <span>Rejected meetings</span><span className="text-right">{effort.rejectedMeetings}</span>
-              <span>Plan depth</span><span className="text-right">{effort.planDepth}</span>
-              <span>Peak memory load</span><span className="text-right">{effort.memoryLoad.peak}</span>
-              {effort.humanOptimalGap !== undefined && (
-                <>
-                  <span>Human / optimal length</span>
-                  <span className="text-right">{effort.humanOptimalGap.toFixed(2)}×</span>
-                </>
-              )}
-              <span className="font-medium text-foreground">Cognitive effort score</span>
-              <span className="text-right font-medium text-foreground">{effort.cognitiveEffortScore.toFixed(1)}</span>
-            </div>
-          </div>
-
           {/* Export */}
-          <div className="p-3 border-t border-border flex gap-2">
+          <div className="p-3 shrink-0 border-t border-border flex gap-2">
             <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={() => handleExport("json")}>
               <Download className="w-3.5 h-3.5" /> JSON
             </Button>
