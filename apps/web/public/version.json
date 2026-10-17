@@ -1,7 +1,7 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "release": "1017-human-route",
   "features": [
-    "Human route directed corridor reachability"
+    "Directed corridors and consistent human-route playback"
   ]
 }

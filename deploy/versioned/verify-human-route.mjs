@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 const require = createRequire(new URL('../../apps/web/package.json', import.meta.url));
-const { chromium } = require('@playwright/test');
+const { chromium, expect } = require('@playwright/test');
 const base = process.env.RELEASE_URL || 'http://100.65.222.38:18083';
 const browser = await chromium.launch({ headless: true });
 try {
@@ -20,7 +20,7 @@ try {
   await page.goto(`${base}/labs`);
   await page.getByLabel('应用版本').waitFor();
   assert.equal(await page.getByLabel('应用版本').inputValue(), '1017-human-route');
-  assert.equal((await (await page.request.get(`${base}/version.json`)).json()).version, '0.2.1');
+  assert.equal((await (await page.request.get(`${base}/version.json`)).json()).version, '0.2.2');
   if (process.env.TEST_EVENT_FILE) {
     await page.locator('button:has(svg.lucide-menu)').click();
     const choosing = page.waitForEvent('filechooser');
@@ -39,8 +39,6 @@ try {
     await page.getByRole('option', { name: '2 → 3', exact: true }).click();
     await page.getByTitle('Next step (→)').waitFor();
     assert.equal(await page.getByText('No route found for this leg.', { exact: true }).count(), 0);
-    while (await page.getByTitle('Next step (→)').isEnabled()) await page.getByTitle('Next step (→)').click();
-    if (process.env.SCREENSHOT_FILE) await page.screenshot({ path: process.env.SCREENSHOT_FILE });
     // Inspect the local export blob; no event data leaves the browser.
     await page.evaluate(() => {
       const create = URL.createObjectURL.bind(URL);
@@ -58,7 +56,52 @@ try {
     assert.equal(bundle.effort.planDepth, 1);
     assert.ok(bundle.result.explorationTrace.every(s => s.candidates.every(c => c.label)));
 
-    if (process.env.SCREENSHOT_FILE) await page.screenshot({ path: process.env.SCREENSHOT_FILE });
+    assert.equal(bundle.explanation.length, 3);
+    const step = bundle.result.explorationTrace[0];
+    assert.equal(step.side, 'tracking');
+    assert.equal(step.completesRoute, true);
+    assert.equal(step.candidates[0].label, 'f');
+    const chosen = step.candidates[step.chosenCandidateIndex];
+    assert.equal(chosen.label, 'Y');
+    assert.ok(chosen.path.some((id, i) => id === '1212' && chosen.path[i + 1] === '1211'));
+    assert.deepEqual(step.memory.forwardChain, []);
+    assert.deepEqual(step.memory.backwardChain, []);
+    assert.match(bundle.explanation[1].text, /Stair Y connects.*choose Y/);
+    assert.ok(!bundle.explanation.some(e => /try.* f\.|worked out from the control/.test(e.text)));
+
+    const checkFrame = async index => {
+      await expect(page.locator('[aria-current="step"]')).toHaveText(bundle.explanation[index].text);
+      await expect(page.getByText('Short-term memory', { exact: true })).toHaveCount(index === 1 ? 1 : 0);
+      const selected = page.locator('[data-human-candidate][data-chosen="true"]');
+      if (index === 1) {
+        await expect(selected).toHaveCount(1);
+        await expect(selected).toHaveAttribute('data-human-candidate', 'Y');
+        await expect(selected.locator('polyline')).toHaveCount(1);
+        await expect(page.locator('[data-human-candidate="f"]')).toHaveAttribute('data-chosen', 'false');
+        const memory = page.getByText('Short-term memory', { exact: true }).locator('..');
+        assert.equal(await memory.locator('.font-mono').allTextContents().then(a => a.join('|')), '—|—');
+      } else {
+        await expect(selected).toHaveCount(0);
+      }
+      if (process.env.SCREENSHOT_FILE) await page.screenshot({ path: process.env.SCREENSHOT_FILE.replace(/\.png$/, `-step-${index + 1}.png`) });
+      console.log(`PASS: frame ${index + 1}: ${bundle.explanation[index].text}`);
+    };
+    await checkFrame(0);
+    await page.getByTitle('Next step (→)').click();
+    await checkFrame(1);
+    await page.getByTitle('Next step (→)').click();
+    await checkFrame(2);
+    await expect(page.getByTitle('Next step (→)')).toBeDisabled();
+    await page.getByTitle('Previous step (←)').click();
+    await checkFrame(1);
+    await page.keyboard.press('ArrowRight');
+    await checkFrame(2);
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    await checkFrame(0);
+    await page.getByTitle('Play (Space)').click();
+    await expect(page.getByText('Step 3 / 3', { exact: true })).toBeVisible({ timeout: 10000 });
+    await checkFrame(2);
     await page.getByRole('button', { name: 'Route Analysis', exact: true }).click();
     await page.getByRole('combobox').filter({ hasText: /Select a course|MW21E/ }).click();
     await page.getByRole('option', { name: /MW21E/ }).click();

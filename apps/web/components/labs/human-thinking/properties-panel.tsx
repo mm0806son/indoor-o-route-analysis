@@ -1,5 +1,7 @@
 "use client"
 
+import { ShortTermMemory } from "./short-term-memory";
+
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@indoor-o-route-analysis/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@indoor-o-route-analysis/ui";
@@ -344,6 +346,7 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
                   <button
                     key={message.frameIndex}
                     data-step-index={message.frameIndex}
+                    aria-current={message.frameIndex === stepIndex ? "step" : undefined}
                     onClick={() => setStepIndex(message.frameIndex)}
                     className={`flex items-start gap-2 w-full text-left text-sm rounded-lg px-3 py-2 transition-colors ${
                       message.frameIndex === stepIndex
@@ -365,31 +368,7 @@ export default function HumanThinkingPanel({ onRouteSelect, onOverlayChange }: H
             </div>
           )}
 
-          {/* Short-term memory: what the human must hold in mind right now —
-              not a total (see Thinking effort below), so kept visually separate. */}
-          {currentFrame?.memory && (
-            <div className="p-3 border-t border-border text-xs space-y-2">
-              <div className="font-medium text-sm mb-1">Short-term memory</div>
-              <div>
-                <div className="text-muted-foreground">Tracking, from start</div>
-                <div className="font-mono">{currentFrame.memory.forwardChain.join(" · ") || "—"}</div>
-                {currentFrame.memory.forwardPending.length > 0 && (
-                  <div className="text-muted-foreground mt-0.5">
-                    Still to try: {currentFrame.memory.forwardPending.map((p) => p.label ?? "start").join(", ")}
-                  </div>
-                )}
-              </div>
-              <div>
-                <div className="text-muted-foreground">Backtracking, from control</div>
-                <div className="font-mono">{currentFrame.memory.backwardChain.join(" · ") || "—"}</div>
-                {currentFrame.memory.backwardPending.length > 0 && (
-                  <div className="text-muted-foreground mt-0.5">
-                    Still to try: {currentFrame.memory.backwardPending.map((p) => p.label ?? "control").join(", ")}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          <ShortTermMemory frame={currentFrame} />
 
           {/* Thinking-effort summary */}
           <div className="p-3 border-t border-border text-xs space-y-1">

@@ -78,15 +78,16 @@ describe("traceToFrames — multi-floor", () => {
     expect(closure.planLabels).toEqual(["1", "2"]);
   });
 
-  it("carries the accepted meeting's full paths onto the closure frame's memory", () => {
+  it("carries the accepted meeting's full paths onto the closure frame's final paths without working memory", () => {
     const result: HumanRouteResult = {
       ...multiFloorResult(),
       meetingAttempts: [{ order: 2, cluster: "F2", accepted: true, forwardPath: ["S", "A", "B"], backwardPath: ["C", "D", "T"] }],
     };
     const frames = traceToFrames(result);
     const closure = frames[frames.length - 1];
-    expect(closure.memory?.forwardPath).toEqual(["S", "A", "B"]);
-    expect(closure.memory?.backwardPath).toEqual(["C", "D", "T"]);
+    expect(closure.memory).toBeUndefined();
+    expect(closure.finalPaths?.forwardPath).toEqual(["S", "A", "B"]);
+    expect(closure.finalPaths?.backwardPath).toEqual(["C", "D", "T"]);
   });
 
   it("has no closure memory when the accepted meeting didn't record paths", () => {

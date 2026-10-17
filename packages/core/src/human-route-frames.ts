@@ -20,6 +20,10 @@ export interface HumanRouteFrame {
   toCluster?: string;
   /** Candidate stairs considered from `cluster`, in preference order (exploration only). */
   candidates?: HumanRouteCandidate[];
+  chosenCandidateIndex?: number;
+  completesRoute?: boolean;
+  /** Final drawing paths are separate from exploration working memory. */
+  finalPaths?: { forwardPath: string[]; backwardPath: string[] };
   /** What the human must hold in short-term memory at this step (exploration only). */
   memory?: HumanRouteMemorySnapshot;
   /** The specific node the human is standing at for this step - the "origin" marker on the map (exploration only). */
@@ -78,11 +82,11 @@ export function traceToFrames(result: HumanRouteResult): HumanRouteFrame[] {
   });
 
   type MergedItem =
-    | { order: number; type: "step"; side: HumanRouteSide; cluster: string; candidates: HumanRouteCandidate[]; memory?: HumanRouteMemorySnapshot; atNode?: string }
+    | { order: number; type: "step"; side: HumanRouteSide; cluster: string; candidates: HumanRouteCandidate[]; chosenCandidateIndex?: number; completesRoute?: boolean; memory?: HumanRouteMemorySnapshot; atNode?: string }
     | { order: number; type: "meeting"; cluster: string; accepted: boolean; reason?: "stair-reuse" | "stitch-failed" };
 
   const merged: MergedItem[] = [
-    ...result.explorationTrace.map((s) => ({ order: s.order, type: "step" as const, side: s.side, cluster: s.cluster, candidates: s.candidates, memory: s.memory, atNode: s.atNode })),
+    ...result.explorationTrace.map((s) => ({ order: s.order, type: "step" as const, side: s.side, cluster: s.cluster, candidates: s.candidates, chosenCandidateIndex: s.chosenCandidateIndex, completesRoute: s.completesRoute, memory: s.memory, atNode: s.atNode })),
     ...result.meetingAttempts.map((m) => ({ order: m.order, type: "meeting" as const, cluster: m.cluster, accepted: m.accepted, reason: m.reason })),
   ].sort((a, b) => a.order - b.order);
 
@@ -106,6 +110,8 @@ export function traceToFrames(result: HumanRouteResult): HumanRouteFrame[] {
         side: item.side,
         cluster: item.cluster,
         candidates: item.candidates,
+        chosenCandidateIndex: item.chosenCandidateIndex,
+        completesRoute: item.completesRoute,
         memory: item.memory,
         atNode: item.atNode,
         ...snapshot(),
@@ -128,18 +134,10 @@ export function traceToFrames(result: HumanRouteResult): HumanRouteFrame[] {
     cluster: acceptedMeeting?.cluster,
     ...snapshot(),
     planLabels: [...result.forwardLabels, ...result.backwardLabels],
-    // Reuses the memory snapshot shape to carry the *final* (complete, not
-    // approximate mid-search) node-level paths, so the map overlay can keep
-    // drawing both sides' routes - and where they join - at closure instead
-    // of losing them once exploration frames end.
-    memory: (acceptedMeeting?.forwardPath && acceptedMeeting?.backwardPath)
+    finalPaths: (acceptedMeeting?.forwardPath && acceptedMeeting?.backwardPath)
       ? {
-          forwardChain: result.forwardLabels,
-          backwardChain: result.backwardLabels,
           forwardPath: acceptedMeeting.forwardPath,
           backwardPath: acceptedMeeting.backwardPath,
-          forwardPending: [],
-          backwardPending: [],
         }
       : undefined,
   });

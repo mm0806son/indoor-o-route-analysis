@@ -82,10 +82,20 @@ function explainFrame(frame: HumanRouteFrame, frameIndex: number, resolver?: Hum
 
     case "exploration": {
       const candidates = frame.candidates ?? [];
-      const top = candidates[0];
+      const top = candidates[frame.chosenCandidateIndex ?? 0];
       const stairWord = candidates.length === 1 ? "stair" : "stairs";
       const stairList = joinWithAnd(candidates.map((c) => c.label));
       const currentLevel = frame.cluster ? resolver?.floorLevelOf(frame.cluster) : undefined;
+
+      if (frame.completesRoute && top) {
+        const origin = frame.side === "tracking"
+          ? trackingOriginPhrase(frame, resolver)
+          : `Backtracking: ${backtrackOrigin(frame, resolver)}`;
+        return {
+          frameIndex,
+          text: `${origin}, the reachable ${stairWord} are ${stairList}. Stair ${top.label} connects the start-side and target-side paths, so choose ${top.label}.`,
+        };
+      }
 
       if (frame.side === "tracking") {
         const origin = trackingOriginPhrase(frame, resolver);
@@ -129,7 +139,7 @@ function explainFrame(frame: HumanRouteFrame, frameIndex: number, resolver?: Hum
       }
       return {
         frameIndex,
-        text: `That matches what I worked out from the control — so: ${labels.join(", ")}. That's the route. Go!`,
+        text: `The start and control are now connected. Route: ${labels.join(", ")}. Go!`,
       };
     }
 

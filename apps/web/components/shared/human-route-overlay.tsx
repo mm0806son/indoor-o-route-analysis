@@ -100,7 +100,7 @@ export function HumanRouteOverlay({ overlay, clusterOf, nodes }: HumanRouteOverl
         );
       })()}
 
-      {/* Only the chosen (rank 1) candidate gets its real corridor path drawn, with
+      {/* Only the chosen candidate gets its real corridor path drawn, with
           a halo to make it stand out as "the selected path for this step" - the
           other candidates are marked only by their entry-point badge below. */}
       {overlay.candidates.map((candidate) => {
@@ -111,6 +111,8 @@ export function HumanRouteOverlay({ overlay, clusterOf, nodes }: HumanRouteOverl
         return (
           <g
             key={`human-candidate-${candidate.rank}-${candidate.label}`}
+            data-human-candidate={candidate.label}
+            data-chosen={candidate.chosen}
             opacity={candidate.chosen ? 1 : HUMAN_OVERLAY_DISCARDED_OPACITY}
           >
             {/* The candidate's real corridor walk, not a straight line - stops at the

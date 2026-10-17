@@ -90,13 +90,9 @@ describe("buildHumanRouteOverlay", () => {
   it("derives the meeting connector from the closure frame's final paths", () => {
     const overlay = buildHumanRouteOverlay(frame({
       kind: "closure",
-      memory: {
-        forwardChain: ["1"],
-        backwardChain: ["2"],
+      finalPaths: {
         forwardPath: ["S", "A", "B"],
         backwardPath: ["C", "D", "T"],
-        forwardPending: [],
-        backwardPending: [],
       },
     }));
     expect(overlay.meetingConnector).toEqual({ from: "B", to: "C" });
