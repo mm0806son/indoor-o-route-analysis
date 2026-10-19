@@ -783,7 +783,7 @@ Class assignments: ${parsedClassAssignments.length}`);
               </button>
 
               <div className="my-1 border-t border-border" />
-              <button className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex items-center gap-2" onClick={() => { closeMenu(); setShowPublishDialog(true); }} title="准备赛后公开包：选择赛程、推荐路线和当前比赛 (Alt+Shift+P)">
+              <button className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex items-center gap-2" onClick={() => { closeMenu(); setShowPublishDialog(true); }} title="准备赛后公开包：选择赛程和当前比赛 (Alt+Shift+P)">
                 <FileDown className="h-4 w-4" /> 赛后发布…
               </button>
               <button

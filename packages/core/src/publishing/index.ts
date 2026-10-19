@@ -4,6 +4,7 @@ import type { EventData, RaceCourseData } from "../models/event";
 import type { Node } from "../models/graph";
 import type { CustomRoute } from "../models/route";
 import { RouteAnalyzer } from "../route-analyzer";
+import { ScoringModelRegistry } from "../scoring-models";
 import { hasStairPort, normalizeStairCode } from "../stairs";
 import { findEdgeByNodes } from "../utils/graph-utils";
 import { validatePublishedMapGeometry } from "./geometry-validation";
@@ -60,20 +61,6 @@ const mapSchema = z.object({
   pageTransforms: z
     .array(z.object({ topLeft: point, bottomRight: point }))
     .optional(),
-});
-const routeSchema = z.object({
-  id,
-  name: z.string(),
-  courseId: id,
-  legs: z.array(
-    z.object({
-      fromControlId: id,
-      toControlId: id,
-      path: z.array(
-        z.object({ nodeId: id, legTime: finite.nonnegative().optional() }),
-      ),
-    }),
-  ),
 });
 const raceSchema = z.object({
   stairFloorOrder: z.array(finite).optional(),
@@ -143,17 +130,16 @@ const publishedSchema = z.object({
     id,
     name: z.string(),
     country: z.enum(["norway", "sweden", ""]),
+    difficultyScoringModel: z.string().optional(),
     startTime: z.object({ date: z.string(), time: z.string().optional() }),
     raceCourses: z.array(raceSchema).min(1),
   }),
-  recommendations: z.array(routeSchema),
 });
 export interface PublishedEvent {
   schemaVersion: 1;
   eventId: string;
   revision: string;
   event: EventData;
-  recommendations: CustomRoute[];
 }
 export interface PublicationManifest {
   schemaVersion: 1;
@@ -254,12 +240,6 @@ export function parsePublishedEvent(input: unknown): PublishedEvent {
   }
   unique(courses, "course IDs");
   if (!courses.length) throw new Error("Select at least one course");
-  unique(
-    value.recommendations.map((r) => r.id),
-    "recommendations",
-  );
-  for (const route of value.recommendations)
-    validatePublishedRoute(value, route);
   return value;
 }
 export function createPublishedEvent(
@@ -268,12 +248,10 @@ export function createPublishedEvent(
     eventId: string;
     revision: string;
     courseIds: string[];
-    recommendedRouteIds?: string[];
   },
 ): PublishedEvent {
   const selected = new Set(options.courseIds);
   if (!selected.size) throw new Error("Select at least one course");
-  const recommendations: CustomRoute[] = [];
   const raceCourses = (event.raceCourses ?? []).flatMap((race, raceIndex) => {
     // The editor falls back to its sole map for historical saved courses with a stale mapId.
     // Only normalize an unambiguous single-map race; never guess between different maps.
@@ -290,13 +268,6 @@ export function createPublishedEvent(
       );
     if (!courses.length) return [];
     const mapIds = new Set(courses.map((c) => c.mapId));
-    recommendations.push(
-      ...(race.customRoutes ?? []).filter(
-        (r) =>
-          (options.recommendedRouteIds ?? []).includes(r.id) &&
-          courses.some((c) => c.id === r.courseId),
-      ),
-    );
     return [
       {
         ...race,
@@ -319,18 +290,11 @@ export function createPublishedEvent(
   });
   if (raceCourses.flatMap((r) => r.courses).length !== selected.size)
     throw new Error("Selected course is missing");
-  if (
-    recommendations.length !== new Set(options.recommendedRouteIds ?? []).size
-  )
-    throw new Error(
-      "Recommended route is missing or belongs to an unselected course",
-    );
   const result = parsePublishedEvent({
     schemaVersion: 1,
     eventId: options.eventId,
     revision: options.revision,
     event: { ...event, raceCourses },
-    recommendations,
   });
   for (const race of result.event.raceCourses ?? [])
     for (const course of race.courses ?? []) {
@@ -368,7 +332,9 @@ export function createPublishedRouteAnalyzer(
     race.vertices ?? [],
     race.edges ?? [],
     map.scale,
-    undefined,
+    ScoringModelRegistry.getModelOrDefault(
+      published.event.difficultyScoringModel,
+    ),
     race.polygons ?? [],
   );
 }

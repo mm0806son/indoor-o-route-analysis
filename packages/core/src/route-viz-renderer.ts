@@ -47,7 +47,14 @@ export interface MinimalCanvas2DContext {
   beginPath(): void;
   moveTo(x: number, y: number): void;
   lineTo(x: number, y: number): void;
-  arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+  arc(
+    x: number,
+    y: number,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+    counterclockwise?: boolean,
+  ): void;
   stroke(): void;
   fill(): void;
   fillText(text: string, x: number, y: number): void;
@@ -91,7 +98,13 @@ export interface RouteHighlight {
   alpha?: number;
 }
 
-export type VizPhase = "intro" | "shortest" | "easiest" | "human" | "all-routes" | "outro";
+export type VizPhase =
+  | "intro"
+  | "shortest"
+  | "easiest"
+  | "human"
+  | "all-routes"
+  | "outro";
 
 /**
  * A big, brief celebratory flash — a translucent full-frame wash plus an
@@ -121,18 +134,36 @@ export interface LegControls {
   toNodeId: string;
 }
 
-export function drawBackground(ctx: MinimalCanvas2DContext, layout: VizLayout): void {
+export function drawBackground(
+  ctx: MinimalCanvas2DContext,
+  layout: VizLayout,
+): void {
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
   ctx.fillStyle = VIZ_BACKGROUND_COLOR;
   ctx.fillRect(0, 0, layout.width, layout.height);
 }
 
-export function drawMutedGraph(ctx: MinimalCanvas2DContext, edges: VizEdge[], layout: VizLayout): void {
+export interface MutedGraphStyle {
+  nodeRadius?: number;
+  edgeWidth?: number;
+  nodeColor?: string;
+  edgeColor?: string;
+  edgeOpacity?: number;
+  nodeOpacity?: number;
+}
+
+/** Optional screen-space styling lets maps share the renderer without inheriting video-sized symbols. */
+export function drawMutedGraph(
+  ctx: MinimalCanvas2DContext,
+  edges: VizEdge[],
+  layout: VizLayout,
+  style: MutedGraphStyle = {},
+): void {
   ctx.shadowBlur = 0;
-  ctx.globalAlpha = VIZ_GRAPH_EDGE_OPACITY;
-  ctx.strokeStyle = VIZ_GRAPH_EDGE_COLOR;
-  ctx.lineWidth = VIZ_GRAPH_EDGE_WIDTH;
+  ctx.globalAlpha = style.edgeOpacity ?? VIZ_GRAPH_EDGE_OPACITY;
+  ctx.strokeStyle = style.edgeColor ?? VIZ_GRAPH_EDGE_COLOR;
+  ctx.lineWidth = style.edgeWidth ?? VIZ_GRAPH_EDGE_WIDTH;
 
   const strokeEdges = (predicate: (edge: VizEdge) => boolean) => {
     ctx.beginPath();
@@ -154,13 +185,20 @@ export function drawMutedGraph(ctx: MinimalCanvas2DContext, edges: VizEdge[], la
   strokeEdges((edge) => !!edge.ignoreLength);
   ctx.setLineDash([]);
 
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = VIZ_GRAPH_NODE_COLOR;
+  ctx.globalAlpha = style.nodeOpacity ?? 1;
+  ctx.fillStyle = style.nodeColor ?? VIZ_GRAPH_NODE_COLOR;
   for (const pos of layout.positions.values()) {
     ctx.beginPath();
-    ctx.arc(pos.x, pos.y, VIZ_GRAPH_NODE_RADIUS, 0, Math.PI * 2);
+    ctx.arc(
+      pos.x,
+      pos.y,
+      style.nodeRadius ?? VIZ_GRAPH_NODE_RADIUS,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
   }
+  ctx.globalAlpha = 1;
 }
 
 /**
@@ -169,7 +207,11 @@ export function drawMutedGraph(ctx: MinimalCanvas2DContext, edges: VizEdge[], la
  * style (COURSE_COLOR ring controls + leg line), re-scaled for this video's
  * fitted canvas.
  */
-export function drawLegControls(ctx: MinimalCanvas2DContext, layout: VizLayout, legControls: LegControls): void {
+export function drawLegControls(
+  ctx: MinimalCanvas2DContext,
+  layout: VizLayout,
+  legControls: LegControls,
+): void {
   const a = layout.positions.get(legControls.fromNodeId);
   const b = layout.positions.get(legControls.toNodeId);
   if (!a || !b) return;
@@ -201,7 +243,11 @@ export function drawLegControls(ctx: MinimalCanvas2DContext, layout: VizLayout, 
   ctx.restore();
 }
 
-export function drawScreenFlash(ctx: MinimalCanvas2DContext, layout: VizLayout, flash: ScreenFlash | undefined): void {
+export function drawScreenFlash(
+  ctx: MinimalCanvas2DContext,
+  layout: VizLayout,
+  flash: ScreenFlash | undefined,
+): void {
   if (!flash || flash.intensity <= 0) return;
   const intensity = Math.min(1, flash.intensity);
 
@@ -212,10 +258,13 @@ export function drawScreenFlash(ctx: MinimalCanvas2DContext, layout: VizLayout, 
   ctx.fillRect(0, 0, layout.width, layout.height);
   ctx.restore();
 
-  const center = flash.centerNodeId ? layout.positions.get(flash.centerNodeId) : undefined;
+  const center = flash.centerNodeId
+    ? layout.positions.get(flash.centerNodeId)
+    : undefined;
   if (!center) return;
 
-  const maxRadius = Math.min(layout.width, layout.height) * VIZ_BIG_FLASH_RING_MAX_RADIUS_RATIO;
+  const maxRadius =
+    Math.min(layout.width, layout.height) * VIZ_BIG_FLASH_RING_MAX_RADIUS_RATIO;
   const radius = maxRadius * (1 - intensity);
 
   ctx.save();
@@ -232,7 +281,11 @@ export function drawScreenFlash(ctx: MinimalCanvas2DContext, layout: VizLayout, 
 
 function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace("#", "");
-  return [parseInt(clean.slice(0, 2), 16), parseInt(clean.slice(2, 4), 16), parseInt(clean.slice(4, 6), 16)];
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16),
+  ];
 }
 
 function mixHexColors(from: string, to: string, t: number): string {
@@ -259,12 +312,12 @@ export function drawFlashOverlay(
   ctx: MinimalCanvas2DContext,
   edges: VizEdge[],
   flash: FrameFlashState,
-  layout: VizLayout
+  layout: VizLayout,
 ): void {
   for (const edge of edges) {
     const intensity = Math.max(
       flash.edgeFlash.get(`${edge.from}:${edge.to}`) ?? 0,
-      flash.edgeFlash.get(`${edge.to}:${edge.from}`) ?? 0
+      flash.edgeFlash.get(`${edge.to}:${edge.from}`) ?? 0,
     );
     if (intensity <= 0) continue;
     const a = layout.positions.get(edge.from);
@@ -317,7 +370,7 @@ export function drawHighlightedRoutes(
   ctx: MinimalCanvas2DContext,
   routes: RouteHighlight[],
   edges: VizEdge[],
-  layout: VizLayout
+  layout: VizLayout,
 ): void {
   const ignoreLengthEdgeKeys = buildIgnoreLengthEdgeKeys(edges);
 
@@ -326,7 +379,10 @@ export function drawHighlightedRoutes(
     if (path.length < 2 || progress <= 0) continue;
 
     const totalSegments = path.length - 1;
-    const revealed = Math.max(0, Math.min(totalSegments, progress * totalSegments));
+    const revealed = Math.max(
+      0,
+      Math.min(totalSegments, progress * totalSegments),
+    );
     const fullSegments = Math.floor(revealed);
     const partial = revealed - fullSegments;
 
@@ -342,7 +398,11 @@ export function drawHighlightedRoutes(
     // Drawn segment-by-segment (rather than one continuous path) so each
     // segment can switch between solid and dashed depending on whether it's
     // an "ignore length" (stairs/map-segment transition) edge, matching the muted graph.
-    const strokeSegment = (from: { x: number; y: number }, to: { x: number; y: number }, dashed: boolean) => {
+    const strokeSegment = (
+      from: { x: number; y: number },
+      to: { x: number; y: number },
+      dashed: boolean,
+    ) => {
       ctx.setLineDash(dashed ? VIZ_GRAPH_DASH_PATTERN : []);
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
@@ -353,14 +413,28 @@ export function drawHighlightedRoutes(
     for (let i = 0; i < fullSegments; i++) {
       const a = layout.positions.get(path[i]);
       const b = layout.positions.get(path[i + 1]);
-      if (a && b) strokeSegment(a, b, ignoreLengthEdgeKeys.has(`${path[i]}:${path[i + 1]}`));
+      if (a && b)
+        strokeSegment(
+          a,
+          b,
+          ignoreLengthEdgeKeys.has(`${path[i]}:${path[i + 1]}`),
+        );
     }
     if (partial > 0 && fullSegments < totalSegments) {
       const a = layout.positions.get(path[fullSegments]);
       const b = layout.positions.get(path[fullSegments + 1]);
       if (a && b) {
-        const end = { x: a.x + (b.x - a.x) * partial, y: a.y + (b.y - a.y) * partial };
-        strokeSegment(a, end, ignoreLengthEdgeKeys.has(`${path[fullSegments]}:${path[fullSegments + 1]}`));
+        const end = {
+          x: a.x + (b.x - a.x) * partial,
+          y: a.y + (b.y - a.y) * partial,
+        };
+        strokeSegment(
+          a,
+          end,
+          ignoreLengthEdgeKeys.has(
+            `${path[fullSegments]}:${path[fullSegments + 1]}`,
+          ),
+        );
       }
     }
     ctx.setLineDash([]);
@@ -368,7 +442,11 @@ export function drawHighlightedRoutes(
   }
 }
 
-export function drawCaption(ctx: MinimalCanvas2DContext, frame: RouteVizFrameState, layout: VizLayout): void {
+export function drawCaption(
+  ctx: MinimalCanvas2DContext,
+  frame: RouteVizFrameState,
+  layout: VizLayout,
+): void {
   ctx.save();
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
@@ -402,7 +480,7 @@ export function renderRouteVizFrame(
   edges: VizEdge[],
   layout: VizLayout,
   legControls: LegControls,
-  frame: RouteVizFrameState
+  frame: RouteVizFrameState,
 ): void {
   drawBackground(ctx, layout);
   drawMutedGraph(ctx, edges, layout);

@@ -73,7 +73,7 @@ describe("static publication packaging", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
-  it("writes only explicitly published packages and selected recommendations", async () => {
+  it("writes selected courses without organizer or private routes", async () => {
     const root = await mkdtemp(join(tmpdir(), "publication-test-"));
     try {
       const build = join(root, "out");
@@ -145,7 +145,7 @@ describe("static publication packaging", () => {
         "utf8",
       );
       expect(data).not.toContain("PRIVATE_ROUTE");
-      expect(JSON.parse(data).recommendations).toEqual([]);
+      expect(JSON.parse(data)).not.toHaveProperty("recommendations");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

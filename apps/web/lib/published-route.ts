@@ -2,12 +2,13 @@ import type {
   Course,
   CustomRoute,
   RouteAnalyzer,
+  RouteInfo,
   RouteLeg,
-} from '@indoor-o-route-analysis/core';
+} from "@indoor-o-route-analysis/core";
 export function makeDraft(course: Course, id: string): CustomRoute {
   return {
     id,
-    name: '我的路线',
+    name: "我的路线",
     courseId: course.id,
     legs: course.controls.slice(1).map((c, i) => ({
       fromControlId: course.controls[i].controlId,
@@ -37,37 +38,124 @@ export function buildLeg(
   };
 }
 
-/** At most 12 shortest-path runs; no exhaustive path enumeration. */
+/** Metrics use the same distance/scoring functions as the editor; time is an estimate at the visible speed. */
+export interface PublishedRouteMetrics {
+  distance: number;
+  distanceDelta: number;
+  distanceRatio: number | null;
+  estimatedTime: number;
+  timeDelta: number;
+  difficulty: number;
+  difficultyFormula?: string;
+  description: string;
+  totalClimb?: number;
+}
+export interface PublishedLegAnalysis {
+  leg: RouteLeg;
+  candidates: RouteLeg[];
+  candidateMetrics: PublishedRouteMetrics[];
+  previewMetrics: PublishedRouteMetrics;
+}
+function validateSpeed(speed: number) {
+  if (!Number.isFinite(speed) || speed <= 0)
+    throw Error("速度必须是大于零的有限数值（米/秒）");
+}
+function distanceMetrics(
+  distance: number,
+  bestDistance: number,
+  runningSpeed: number,
+) {
+  validateSpeed(runningSpeed);
+  return {
+    distance,
+    distanceDelta: distance - bestDistance,
+    distanceRatio: bestDistance > 0 ? distance / bestDistance : null,
+    estimatedTime: distance / runningSpeed,
+    timeDelta: (distance - bestDistance) / runningSpeed,
+  };
+}
+export function measurePublishedLeg(
+  analyzer: RouteAnalyzer,
+  leg: RouteLeg,
+  bestDistance: number,
+  runningSpeed = 5,
+): PublishedRouteMetrics {
+  const path = leg.path.map((node) => node.nodeId);
+  return {
+    ...distanceMetrics(
+      analyzer.calculatePathDistance(path),
+      bestDistance,
+      runningSpeed,
+    ),
+    difficulty: analyzer.calculatePathDifficulty(path),
+    description: analyzer.getRouteDescription(path),
+  };
+}
+function toLeg(route: RouteInfo, from: string, to: string): RouteLeg {
+  // The shared analyzer wraps paths with controls even when controls already are graph nodes.
+  // Only remove consecutive duplicates; keep every actual turn and graph edge.
+  return {
+    fromControlId: from,
+    toControlId: to,
+    path: route.path
+      .filter((id, i, path) => !i || id !== path[i - 1])
+      .map((nodeId) => ({ nodeId })),
+  };
+}
+function candidateRoutes(
+  analyzer: RouteAnalyzer,
+  from: string,
+  to: string,
+): RouteInfo[] {
+  const seen = new Set<string>();
+  // Exactly the editor Analysis search: bounded internally by 200 penalty iterations.
+  // Do not substitute different penalties, exhaustive enumeration, or invented extra routes.
+  return analyzer
+    .findAlternativePathsBetweenControls(from, to, 6)
+    .sort((a, b) => a.distance - b.distance)
+    .filter((route) => {
+      const key = JSON.stringify(toLeg(route, from, to).path);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 6);
+}
 export function exploreLegs(
   analyzer: RouteAnalyzer,
   from: string,
   to: string,
 ): RouteLeg[] {
-  const results: RouteLeg[] = [],
-    seen = new Set<string>(),
-    penalties = new Map<string, number>();
-  for (let i = 0; i < 12 && results.length < 4; i++) {
-    const candidate = analyzer.dijkstra(from, to, penalties);
-    if (!candidate) break;
-    const key = JSON.stringify(candidate.path);
-    if (!seen.has(key)) {
-      seen.add(key);
-      results.push({
-        fromControlId: from,
-        toControlId: to,
-        path: candidate.path.map((nodeId) => ({ nodeId })),
-      });
-    }
-    for (let j = 1; j < candidate.path.length; j++) {
-      const a = candidate.path[j - 1],
-        b = candidate.path[j];
-      for (const edge of [`${a}:${b}`, `${b}:${a}`])
-        penalties.set(edge, (penalties.get(edge) ?? 1) * 2);
-    }
-  }
-  return results.sort(
-    (a, b) =>
-      analyzer.calculatePathDistance(a.path.map((n) => n.nodeId)) -
-      analyzer.calculatePathDistance(b.path.map((n) => n.nodeId)),
+  return candidateRoutes(analyzer, from, to).map((route) =>
+    toLeg(route, from, to),
   );
+}
+export function analyzePublishedLeg(
+  analyzer: RouteAnalyzer,
+  from: string,
+  to: string,
+  via: string[] = [],
+  runningSpeed = 5,
+): PublishedLegAnalysis {
+  validateSpeed(runningSpeed);
+  const routes = candidateRoutes(analyzer, from, to);
+  if (!routes.length)
+    throw Error(`节点 ${from} → ${to} 不连通或禁止此方向通行`);
+  const bestDistance = routes[0].distance;
+  const candidates = routes.map((route) => toLeg(route, from, to));
+  const candidateMetrics = routes.map((route, i) => ({
+    ...measurePublishedLeg(analyzer, candidates[i], bestDistance, runningSpeed),
+    // Climb is unaffected by removing consecutive duplicate controls. Difficulty is not:
+    // use the normalized path just like the original Route Builder, not the wrapped Analysis path.
+    totalClimb: route.totalClimb,
+  }));
+  const leg = via.length ? buildLeg(analyzer, from, to, via) : candidates[0];
+  return {
+    leg,
+    candidates,
+    candidateMetrics,
+    previewMetrics: via.length
+      ? measurePublishedLeg(analyzer, leg, bestDistance, runningSpeed)
+      : candidateMetrics[0],
+  };
 }

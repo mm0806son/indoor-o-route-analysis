@@ -151,17 +151,13 @@ test("organizer publishes existing Course Setting JSON and excludes private rout
   await page.locator("button:has(svg.lucide-menu)").click();
   await page.getByRole("button", { name: /赛后发布/ }).click();
   const dialog = page.getByRole("dialog", { name: "赛后发布设置" });
-  await dialog
-    .getByLabel(/导入线路设计 JSON/)
-    .setInputFiles({
-      name: "course-setting.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(input)),
-    });
+  await dialog.getByLabel(/导入线路设计 JSON/).setInputFiles({
+    name: "course-setting.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(input)),
+  });
   await dialog.getByRole("checkbox", { name: "公开赛程", exact: true }).check();
-  await dialog
-    .getByRole("checkbox", { name: "组织者推荐", exact: true })
-    .check();
+  await expect(dialog.getByText(/组织者推荐/)).toHaveCount(0);
   await dialog
     .getByRole("button", { name: "加入 / 更新公开包", exact: true })
     .click();
@@ -175,7 +171,7 @@ test("organizer publishes existing Course Setting JSON and excludes private rout
   const contents = await readFile((await download.path())!, "utf8");
   const data = JSON.parse(contents);
   expect(data.currentEventId).toBe("race-a");
-  expect(data.events[0].recommendations).toHaveLength(1);
+  expect(data.events[0]).not.toHaveProperty("recommendations");
   expect(data.events[0].event.raceCourses[0].customRoutes).toBeUndefined();
   expect(contents).not.toContain("PRIVATE athlete route");
   expect(
@@ -183,31 +179,98 @@ test("organizer publishes existing Course Setting JSON and excludes private rout
   ).toBeTruthy();
 });
 
-test('organizer previews saved JSON locally without publishing or uploading it', async ({ page }) => {
-  const { testEvent } = await import('./fixtures/publication');
+test("organizer previews saved JSON locally without publishing or uploading it", async ({
+  page,
+}) => {
+  const { testEvent } = await import("./fixtures/publication");
   const writes: string[] = [];
   const manifests: string[] = [];
-  page.on('request', request => {
-    if (!['GET', 'HEAD'].includes(request.method())) writes.push(request.url());
-    if (request.url().includes('/published/manifest.json')) manifests.push(request.url());
+  page.on("request", (request) => {
+    if (!["GET", "HEAD"].includes(request.method())) writes.push(request.url());
+    if (request.url().includes("/published/manifest.json"))
+      manifests.push(request.url());
   });
-  await page.goto('/');
-  await page.locator('button:has(svg.lucide-menu)').click();
-  await page.getByRole('button', { name: /赛后发布/ }).click();
-  const dialog = page.getByRole('dialog', { name: '赛后发布设置' });
+  await page.goto("/");
+  await page.locator("button:has(svg.lucide-menu)").click();
+  await page.getByRole("button", { name: /赛后发布/ }).click();
+  const dialog = page.getByRole("dialog", { name: "赛后发布设置" });
   await dialog.getByLabel(/导入线路设计 JSON/).setInputFiles({
-    name: 'my-course.json', mimeType: 'application/json',
+    name: "my-course.json",
+    mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(testEvent)),
   });
-  await dialog.getByRole('checkbox', { name: '公开赛程', exact: true }).check();
-  await dialog.getByRole('button', { name: '预览运动员页面', exact: true }).click();
+  await dialog.getByRole("checkbox", { name: "公开赛程", exact: true }).check();
+  await dialog
+    .getByRole("button", { name: "预览运动员页面", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/viewer\?preview=/);
-  await expect(page.locator('canvas[data-map-ready=true]')).toBeVisible();
-  await page.getByRole('button', { name: '新建路线 (N)', exact: true }).click();
-  await page.getByRole('button', { name: '采用此赛段', exact: true }).click();
+  await expect(page.locator("canvas[data-map-ready=true]")).toBeVisible();
+  await page.getByRole("button", { name: "新建路线 (N)", exact: true }).click();
+  await page.getByRole("button", { name: "采用此赛段", exact: true }).click();
   await page.reload();
-  await expect(page.locator('canvas[data-map-ready=true]')).toBeVisible();
-  await expect(page.getByLabel('路线名称', { exact: true })).toBeVisible();
+  await expect(page.locator("canvas[data-map-ready=true]")).toBeVisible();
+  await expect(page.getByLabel("路线名称", { exact: true })).toBeVisible();
   expect(writes).toEqual([]);
   expect(manifests).toEqual([]);
+});
+
+test("mobile touch pans and pinches the map without selecting route nodes", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "Touch gesture regression uses the mobile project");
+  await servePublication(page);
+  await page.goto("/viewer");
+  const canvas = page.locator("canvas[data-map-ready=true]");
+  await expect(canvas).toBeVisible();
+  // Wait for route search to settle before comparing the canvas raster.
+  await expect(page.getByRole("table", { name: "候选路线" })).toBeVisible();
+  const box = (await canvas.boundingBox())!;
+  const x = box.x + box.width * 0.5,
+    y = box.y + box.height * 0.5;
+  const image = () =>
+    canvas.evaluate((el) => (el as HTMLCanvasElement).toDataURL());
+  const before = await image();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x, y, id: 0 }],
+  });
+  for (let step = 1; step <= 5; step++)
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: x + step * 8, y: y + step * 5, id: 0 }],
+    });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect.poll(image).not.toBe(before);
+  await expect(
+    page.getByRole("button", { name: "重置途经点", exact: true }),
+  ).toBeDisabled();
+  const panned = await image();
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [
+      { x: x - 25, y, id: 0 },
+      { x: x + 25, y, id: 1 },
+    ],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [
+      { x: x - 50, y: y + 15, id: 0 },
+      { x: x + 70, y: y + 15, id: 1 },
+    ],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect.poll(image).not.toBe(panned);
+  await expect(
+    page.getByRole("button", { name: "重置途经点", exact: true }),
+  ).toBeDisabled();
+  await cdp.detach();
 });

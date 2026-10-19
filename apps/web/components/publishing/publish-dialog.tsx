@@ -32,14 +32,10 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
   const [eventId, setEventId] = useState(selectedEvent?.id ?? "");
   const [revision, setRevision] = useState("1");
   const [courseIds, setCourseIds] = useState<string[]>([]);
-  const [routeIds, setRouteIds] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const courses =
     selectedEvent?.raceCourses?.flatMap((race) => race.courses ?? []) ?? [];
-  const routes =
-    selectedEvent?.raceCourses?.flatMap((race) => race.customRoutes ?? []) ??
-    [];
   const toggle = (list: string[], id: string) =>
     list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
   useEffect(() => {
@@ -71,7 +67,6 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
         eventId,
         revision,
         courseIds,
-        recommendedRouteIds: routeIds,
       });
       if (preview) {
         const token = savePublicationPreview(published, window.sessionStorage);
@@ -173,7 +168,6 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
                 });
                 setEventId(result.event.id);
                 setCourseIds([]);
-                setRouteIds([]);
                 setError("");
               } catch (reason) {
                 setError(
@@ -241,14 +235,6 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
                   onChange={() => {
                     const next = toggle(courseIds, course.id);
                     setCourseIds(next);
-                    setRouteIds((ids) =>
-                      ids.filter((id) =>
-                        routes.some(
-                          (route) =>
-                            route.id === id && next.includes(route.courseId),
-                        ),
-                      ),
-                    );
                   }}
                 />{" "}
                 {course.name}
@@ -304,19 +290,6 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
                   </label>
                 )),
             )}
-            <p>明确选择组织者推荐路线（默认全部不公开）：</p>
-            {routes
-              .filter((route) => courseIds.includes(route.courseId))
-              .map((route) => (
-                <label key={route.id} className="block">
-                  <input
-                    type="checkbox"
-                    checked={routeIds.includes(route.id)}
-                    onChange={() => setRouteIds(toggle(routeIds, route.id))}
-                  />{" "}
-                  {route.name}
-                </label>
-              ))}
             <button
               disabled={busy || !courseIds.length}
               onClick={() => addCurrent()}
@@ -378,12 +351,15 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
         <button
           onClick={() => addCurrent(true)}
           disabled={busy || !selectedEvent || !courseIds.length}
-          title="使用当前选择在本标签页预览，不上传文件或修改公开站点"
+          title="在当前标签页预览所选赛程"
           className="mb-2 flex items-center gap-2 rounded bg-purple-700 px-3 py-2 disabled:opacity-50"
         >
-          <Eye size={16} />预览运动员页面
+          <Eye size={16} />
+          预览运动员页面
         </button>
-        <p className="mb-2 text-muted-foreground">预览使用上方选中的赛程和推荐路线；数据只放在当前标签页会话中，不会上传。进入预览前可先下载发布包备份设置。</p>
+        <p className="mb-2 text-muted-foreground">
+          预览使用上方选中的赛程和地图。下载发布包可保存当前设置。
+        </p>
         <button
           onClick={download}
           className="flex items-center gap-2 rounded bg-purple-700 px-3 py-2"
@@ -392,7 +368,7 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
           下载发布包
         </button>
         <p className="mt-2 text-muted-foreground">
-          地图和推荐路线公开可下载；运动员个人路线留在其浏览器。发布包不包含未选择的个人路线。
+          运动员打开链接即可查看地图、探索路线并导出 GPX。
         </p>
       </section>
     </div>,

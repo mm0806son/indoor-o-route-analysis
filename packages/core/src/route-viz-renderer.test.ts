@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { MinimalCanvas2DContext, RouteVizFrameState, VizEdge, VizLayout } from "./route-viz-renderer";
-import { renderRouteVizFrame } from "./route-viz-renderer";
+import type {
+  MinimalCanvas2DContext,
+  RouteVizFrameState,
+  VizEdge,
+  VizLayout,
+} from "./route-viz-renderer";
+import { renderRouteVizFrame, drawMutedGraph } from "./route-viz-renderer";
 
 function createMockContext(): { ctx: MinimalCanvas2DContext; calls: string[] } {
   const calls: string[] = [];
@@ -22,7 +27,8 @@ function createMockContext(): { ctx: MinimalCanvas2DContext; calls: string[] } {
     stroke: () => calls.push(`stroke(shadowBlur=${ctx.shadowBlur})`),
     fill: () => calls.push("fill"),
     fillText: (text: string) => calls.push(`fillText(${text})`),
-    setLineDash: (segments: number[]) => calls.push(`setLineDash(${segments.join(",")})`),
+    setLineDash: (segments: number[]) =>
+      calls.push(`setLineDash(${segments.join(",")})`),
     save: () => calls.push("save"),
     restore: () => calls.push("restore"),
   };
@@ -46,7 +52,9 @@ const edges: VizEdge[] = [
 
 const legControls = { fromNodeId: "a", toNodeId: "c" };
 
-function emptyFrame(overrides: Partial<RouteVizFrameState> = {}): RouteVizFrameState {
+function emptyFrame(
+  overrides: Partial<RouteVizFrameState> = {},
+): RouteVizFrameState {
   return {
     phase: "intro",
     caption: "Test caption",
@@ -61,7 +69,9 @@ describe("renderRouteVizFrame", () => {
     const { ctx, calls } = createMockContext();
     renderRouteVizFrame(ctx, edges, layout, legControls, emptyFrame());
 
-    expect(calls.filter((c) => c.startsWith("fillRect"))).toEqual([`fillRect(0,0,${layout.width},${layout.height})`]);
+    expect(calls.filter((c) => c.startsWith("fillRect"))).toEqual([
+      `fillRect(0,0,${layout.width},${layout.height})`,
+    ]);
   });
 
   it("draws every graph node as a muted circle", () => {
@@ -78,11 +88,21 @@ describe("renderRouteVizFrame", () => {
       { from: "b", to: "c", ignoreLength: true },
     ];
     const { ctx, calls } = createMockContext();
-    renderRouteVizFrame(ctx, edgesWithStairs, layout, legControls, emptyFrame());
+    renderRouteVizFrame(
+      ctx,
+      edgesWithStairs,
+      layout,
+      legControls,
+      emptyFrame(),
+    );
 
     const dashCalls = calls.filter((c) => c.startsWith("setLineDash"));
     // Reset to solid, draw solid edges; switch to dashed, draw dashed edges; reset back to solid.
-    expect(dashCalls).toEqual(["setLineDash()", "setLineDash(6,4)", "setLineDash()"]);
+    expect(dashCalls).toEqual([
+      "setLineDash()",
+      "setLineDash(6,4)",
+      "setLineDash()",
+    ]);
   });
 
   it("dashes the segment of a highlighted route that crosses an ignoreLength edge", () => {
@@ -96,7 +116,11 @@ describe("renderRouteVizFrame", () => {
       edgesWithStairs,
       layout,
       legControls,
-      emptyFrame({ highlightedRoutes: [{ path: ["a", "b", "c"], color: "#00F5D4", progress: 1 }] })
+      emptyFrame({
+        highlightedRoutes: [
+          { path: ["a", "b", "c"], color: "#00F5D4", progress: 1 },
+        ],
+      }),
     );
 
     // Two route segments are drawn (a-b solid, b-c dashed), on top of the
@@ -132,7 +156,11 @@ describe("renderRouteVizFrame", () => {
       edges,
       layout,
       legControls,
-      emptyFrame({ highlightedRoutes: [{ path: ["a", "b", "c"], color: "#00F5D4", progress: 1 }] })
+      emptyFrame({
+        highlightedRoutes: [
+          { path: ["a", "b", "c"], color: "#00F5D4", progress: 1 },
+        ],
+      }),
     );
 
     expect(calls).toContain("moveTo(10,10)");
@@ -152,7 +180,11 @@ describe("renderRouteVizFrame", () => {
       edges,
       layout,
       legControls,
-      emptyFrame({ highlightedRoutes: [{ path: ["a", "b", "c"], color: "#00F5D4", progress: 0.25 }] })
+      emptyFrame({
+        highlightedRoutes: [
+          { path: ["a", "b", "c"], color: "#00F5D4", progress: 0.25 },
+        ],
+      }),
     );
 
     const { ctx: fullCtx, calls: fullCalls } = createMockContext();
@@ -161,10 +193,15 @@ describe("renderRouteVizFrame", () => {
       edges,
       layout,
       legControls,
-      emptyFrame({ highlightedRoutes: [{ path: ["a", "b", "c"], color: "#00F5D4", progress: 1 }] })
+      emptyFrame({
+        highlightedRoutes: [
+          { path: ["a", "b", "c"], color: "#00F5D4", progress: 1 },
+        ],
+      }),
     );
 
-    const countLineToC = (calls: string[]) => calls.filter((c) => c === "lineTo(90,90)").length;
+    const countLineToC = (calls: string[]) =>
+      calls.filter((c) => c === "lineTo(90,90)").length;
     expect(countLineToC(fullCalls)).toBe(countLineToC(partialCalls) + 1);
   });
 
@@ -175,7 +212,11 @@ describe("renderRouteVizFrame", () => {
       edges,
       layout,
       legControls,
-      emptyFrame({ highlightedRoutes: [{ path: ["a", "b", "c"], color: "#00F5D4", progress: 0.5 }] })
+      emptyFrame({
+        highlightedRoutes: [
+          { path: ["a", "b", "c"], color: "#00F5D4", progress: 0.5 },
+        ],
+      }),
     );
 
     const finished = createMockContext();
@@ -184,20 +225,35 @@ describe("renderRouteVizFrame", () => {
       edges,
       layout,
       legControls,
-      emptyFrame({ highlightedRoutes: [{ path: ["a", "b", "c"], color: "#00F5D4", progress: 1 }] })
+      emptyFrame({
+        highlightedRoutes: [
+          { path: ["a", "b", "c"], color: "#00F5D4", progress: 1 },
+        ],
+      }),
     );
 
-    const strokeCalls = (calls: string[]) => calls.filter((c) => c.startsWith("stroke(shadowBlur="));
+    const strokeCalls = (calls: string[]) =>
+      calls.filter((c) => c.startsWith("stroke(shadowBlur="));
 
     // Mid-reveal, at least one stroke (the route itself) glows.
-    expect(strokeCalls(revealing.calls).some((c) => c !== "stroke(shadowBlur=0)")).toBe(true);
+    expect(
+      strokeCalls(revealing.calls).some((c) => c !== "stroke(shadowBlur=0)"),
+    ).toBe(true);
     // Once finished, every stroke in the frame (muted graph + the now-crisp route) has no glow.
-    expect(strokeCalls(finished.calls).every((c) => c === "stroke(shadowBlur=0)")).toBe(true);
+    expect(
+      strokeCalls(finished.calls).every((c) => c === "stroke(shadowBlur=0)"),
+    ).toBe(true);
   });
 
   it("renders the caption text", () => {
     const { ctx, calls } = createMockContext();
-    renderRouteVizFrame(ctx, edges, layout, legControls, emptyFrame({ caption: "Shortest route", subcaption: "287 m" }));
+    renderRouteVizFrame(
+      ctx,
+      edges,
+      layout,
+      legControls,
+      emptyFrame({ caption: "Shortest route", subcaption: "287 m" }),
+    );
 
     expect(calls).toContain("fillText(Shortest route)");
     expect(calls).toContain("fillText(287 m)");
@@ -221,7 +277,9 @@ describe("renderRouteVizFrame", () => {
       edges,
       layout,
       legControls,
-      emptyFrame({ screenFlash: { color: "#ffffff", intensity: 1, centerNodeId: "c" } })
+      emptyFrame({
+        screenFlash: { color: "#ffffff", intensity: 1, centerNodeId: "c" },
+      }),
     );
 
     expect(calls).toContain(`fillRect(0,0,${layout.width},${layout.height})`);
@@ -240,9 +298,41 @@ describe("renderRouteVizFrame", () => {
       edges,
       layout,
       legControls,
-      emptyFrame({ screenFlash: { color: "#ffffff", intensity: 0, centerNodeId: "c" } })
+      emptyFrame({
+        screenFlash: { color: "#ffffff", intensity: 0, centerNodeId: "c" },
+      }),
     );
 
     expect(calls).toEqual(baseCalls);
+  });
+});
+
+describe("muted graph styles", () => {
+  it("preserves existing default video graph style", () => {
+    const { ctx, calls } = createMockContext();
+    drawMutedGraph(ctx, edges, layout);
+    expect(ctx.lineWidth).toBe(1.8);
+    expect(ctx.fillStyle).toBe("#6fa3d8");
+    expect(calls).toContain("arc(10,10,3.2,0,6.283185307179586)");
+  });
+
+  it("supports subtle route-builder graph styling without changing geometry", () => {
+    const { ctx, calls } = createMockContext();
+    const fills: number[] = [];
+    ctx.fill = () => fills.push(ctx.globalAlpha);
+    drawMutedGraph(ctx, edges, layout, {
+      nodeRadius: 1.5,
+      edgeWidth: 0.75,
+      nodeColor: "#00BFFF",
+      edgeColor: "#00BFFF",
+      edgeOpacity: 0.3,
+      nodeOpacity: 0.5,
+    });
+    expect(ctx.lineWidth).toBe(0.75);
+    expect(ctx.fillStyle).toBe("#00BFFF");
+    expect(calls).toContain("arc(10,10,1.5,0,6.283185307179586)");
+    expect(calls).toContain("lineTo(90,10)");
+    expect(fills).toEqual([0.5, 0.5, 0.5]);
+    expect(ctx.globalAlpha).toBe(1);
   });
 });

@@ -91,7 +91,6 @@ export const publishedA = {
   eventId: "race-a",
   revision: "v1",
   event: testEvent,
-  recommendations: [recommended],
 };
 export const publishedB = {
   ...publishedA,

@@ -79,7 +79,6 @@ const publish = () =>
     eventId: "race",
     revision: "v1",
     courseIds: ["c"],
-    recommendedRouteIds: ["r"],
   });
 describe("publication contract", () => {
   it("exports explicit selection, never private routes or unselected maps/courses", () => {
@@ -88,12 +87,14 @@ describe("publication contract", () => {
       eventId: "race",
       revision: "v1",
       courseIds: ["c"],
-      recommendedRouteIds: ["r"],
     });
     expect(result.event.raceCourses![0].customRoutes).toBeUndefined();
     expect(result.event.raceCourses![0].maps).toHaveLength(1);
     expect(result.event.raceCourses![0].courses).toHaveLength(1);
-    expect(result.recommendations.map((r) => r.id)).toEqual(["r"]);
+    expect(result).not.toHaveProperty("recommendations");
+    expect(
+      parsePublishedEvent({ ...result, recommendations: [route] }),
+    ).not.toHaveProperty("recommendations");
     expect(source.raceCourses![0].customRoutes).toHaveLength(2);
     result.event.name = "changed";
     expect(source.name).toBe("Test");

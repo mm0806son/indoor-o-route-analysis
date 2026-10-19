@@ -8,7 +8,7 @@ Use **Stairs** after Graph Editor to annotate up/down stair nodes, connect match
 
 ## Post-race publishing
 
-Use **File → 赛后发布…** (Alt+Shift+P) to import a Course Setting JSON file, select public courses and recommended routes, and prepare a publication bundle. The separate athlete viewer supports mobile maps, route choices, local personal routes, and synthetic-coordinate GPX export. A dedicated static build keeps the public site separate from the editor. See the [publishing guide](docs/post-race-publishing-guide.md) and [requirements](docs/post-race-publishing-requirements.md). Cloud hosting and QuickRoute / Headcam O compatibility still require deployment and external acceptance testing.
+Use **File → 赛后发布…** (Alt+Shift+P) to import a Course Setting JSON file, select public courses, and prepare a publication bundle. The separate athlete viewer supports touch maps, six route choices with distance/time/difficulty, local personal routes, and synthetic-coordinate GPX export. A dedicated static build keeps the public site separate from the editor. See the [publishing guide](docs/post-race-publishing-guide.md) and [requirements](docs/post-race-publishing-requirements.md). Cloud hosting and QuickRoute / Headcam O compatibility still require deployment and external acceptance testing.
 
 ## Contributing
 
