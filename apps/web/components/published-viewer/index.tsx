@@ -29,7 +29,7 @@ import {
   type Course,
   type RouteLeg,
 } from '@indoor-o-route-analysis/core';
-import { loadPublication } from '@/lib/published-loader';
+import { loadViewerPublication } from '@/lib/published-loader';
 import {
   backupDrafts,
   parseBackup,
@@ -74,17 +74,15 @@ function Icon({
 }
 export default function PublishedViewer() {
   const [loaded, setLoaded] =
-      useState<Awaited<ReturnType<typeof loadPublication>>>(),
+      useState<Awaited<ReturnType<typeof loadViewerPublication>>>(),
     [error, setError] = useState(''),
+    [localPreview, setLocalPreview] = useState(false),
     [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setError('');
-    loadPublication(
-      new URL('/published/manifest.json', location.href).href,
-      new URLSearchParams(location.search).get('event') ?? undefined,
-      controller.signal,
-    )
+    setLocalPreview(new URLSearchParams(location.search).has('preview'));
+    loadViewerPublication(location.href, undefined, controller.signal)
       .then(setLoaded)
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
@@ -94,8 +92,12 @@ export default function PublishedViewer() {
   if (error)
     return (
       <main className="published-viewer published-loading">
-        <h1>赛后复盘</h1>
+        <h1>{localPreview ? '本地预览' : '赛后复盘'}</h1>
         <p role="alert">{error}</p>
+        {localPreview && (
+          <p>预览只保存在当前标签页中。请返回编辑器重新生成本地预览。</p>
+        )}
+        {localPreview && <a href="/">返回编辑器</a>}
         <button type="button" onClick={() => setRetry((x) => x + 1)}>
           重新加载
         </button>
@@ -115,9 +117,11 @@ export default function PublishedViewer() {
 function EventViewer({
   published,
   dataUrl,
+  localPreview,
 }: {
   published: PublishedEvent;
   dataUrl: string;
+  localPreview: boolean;
 }) {
   const courses = published.event.raceCourses!.flatMap(
     (race) => race.courses ?? [],
@@ -126,6 +130,12 @@ function EventViewer({
   const course = courses.find((c) => c.id === courseId);
   return (
     <main className="published-viewer">
+      {localPreview && (
+        <div className="local-preview-banner" role="status">
+          <span>本地预览 · 尚未在线发布</span>
+          <a href="/">返回编辑器</a>
+        </div>
+      )}
       <header>
         <div>
           <strong>{published.event.name}</strong>
@@ -787,12 +797,17 @@ function CourseViewer({
         </section>
       </div>
       {message && (
-        <div
-          role="status"
-          className="viewer-status"
-        >
+        <div role="status" className="viewer-status">
           {message}
-          <button type="button" aria-label="关闭提示" title="关闭提示" onClick={() => setMessage('')} style={{ marginLeft: 12 }}>×</button>
+          <button
+            type="button"
+            aria-label="关闭提示"
+            title="关闭提示"
+            onClick={() => setMessage('')}
+            style={{ marginLeft: 12 }}
+          >
+            ×
+          </button>
         </div>
       )}
       {help && (

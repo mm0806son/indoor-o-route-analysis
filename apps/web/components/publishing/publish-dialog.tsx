@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, Plus, X } from "lucide-react";
+import { Download, Eye, Plus, X } from "lucide-react";
 import { useAppData } from "@indoor-o-route-analysis/ui";
 import {
   arrayBufferToBase64,
@@ -15,6 +15,7 @@ import {
 import { createBundle, parseBundle } from "./publication-bundle";
 import { prepareEventMaps } from "./prepare-event";
 import { inspectPublicationMaps } from "./map-metadata";
+import { savePublicationPreview } from "@/lib/publication-preview";
 
 export default function PublishDialog({ onClose }: { onClose: () => void }) {
   const { selectedEvent: editorEvent, currentPdfData: editorPdfData } =
@@ -54,7 +55,7 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
 
-  async function addCurrent() {
+  async function addCurrent(preview = false) {
     if (!selectedEvent) return;
     setBusy(true);
     setError("");
@@ -72,6 +73,11 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
         courseIds,
         recommendedRouteIds: routeIds,
       });
+      if (preview) {
+        const token = savePublicationPreview(published, window.sessionStorage);
+        window.location.assign(`/viewer?preview=${encodeURIComponent(token)}`);
+        return;
+      }
       const previous = packages.find((item) => item.eventId === eventId);
       if (previous?.revision === revision)
         throw new Error("更新同一比赛时请使用新的版本标识。");
@@ -313,7 +319,7 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
               ))}
             <button
               disabled={busy || !courseIds.length}
-              onClick={addCurrent}
+              onClick={() => addCurrent()}
               className="flex items-center gap-2 rounded bg-purple-700 px-3 py-2 disabled:opacity-50"
             >
               <Plus size={16} />
@@ -369,6 +375,15 @@ export default function PublishDialog({ onClose }: { onClose: () => void }) {
             {error}
           </p>
         )}
+        <button
+          onClick={() => addCurrent(true)}
+          disabled={busy || !selectedEvent || !courseIds.length}
+          title="使用当前选择在本标签页预览，不上传文件或修改公开站点"
+          className="mb-2 flex items-center gap-2 rounded bg-purple-700 px-3 py-2 disabled:opacity-50"
+        >
+          <Eye size={16} />预览运动员页面
+        </button>
+        <p className="mb-2 text-muted-foreground">预览使用上方选中的赛程和推荐路线；数据只放在当前标签页会话中，不会上传。进入预览前可先下载发布包备份设置。</p>
         <button
           onClick={download}
           className="flex items-center gap-2 rounded bg-purple-700 px-3 py-2"

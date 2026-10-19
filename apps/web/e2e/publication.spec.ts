@@ -182,3 +182,32 @@ test("organizer publishes existing Course Setting JSON and excludes private rout
     data.events[0].event.raceCourses[0].maps[0].image.encodedData,
   ).toBeTruthy();
 });
+
+test('organizer previews saved JSON locally without publishing or uploading it', async ({ page }) => {
+  const { testEvent } = await import('./fixtures/publication');
+  const writes: string[] = [];
+  const manifests: string[] = [];
+  page.on('request', request => {
+    if (!['GET', 'HEAD'].includes(request.method())) writes.push(request.url());
+    if (request.url().includes('/published/manifest.json')) manifests.push(request.url());
+  });
+  await page.goto('/');
+  await page.locator('button:has(svg.lucide-menu)').click();
+  await page.getByRole('button', { name: /赛后发布/ }).click();
+  const dialog = page.getByRole('dialog', { name: '赛后发布设置' });
+  await dialog.getByLabel(/导入线路设计 JSON/).setInputFiles({
+    name: 'my-course.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(testEvent)),
+  });
+  await dialog.getByRole('checkbox', { name: '公开赛程', exact: true }).check();
+  await dialog.getByRole('button', { name: '预览运动员页面', exact: true }).click();
+  await expect(page).toHaveURL(/\/viewer\?preview=/);
+  await expect(page.locator('canvas[data-map-ready=true]')).toBeVisible();
+  await page.getByRole('button', { name: '新建路线 (N)', exact: true }).click();
+  await page.getByRole('button', { name: '采用此赛段', exact: true }).click();
+  await page.reload();
+  await expect(page.locator('canvas[data-map-ready=true]')).toBeVisible();
+  await expect(page.getByLabel('路线名称', { exact: true })).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(manifests).toEqual([]);
+});

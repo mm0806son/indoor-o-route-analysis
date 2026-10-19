@@ -1,3 +1,4 @@
+import { readPublicationPreview } from './publication-preview';
 import {
   parsePublicationManifest,
   parsePublishedEvent,
@@ -46,4 +47,27 @@ export async function loadPublication(
   )
     throw Error('比赛数据版本不匹配，请重新加载。');
   return { published, dataUrl };
+}
+
+/** Local preview is explicit and never falls back to fetching another competition. */
+export async function loadViewerPublication(
+  href: string,
+  storage?: Storage,
+  signal?: AbortSignal,
+) {
+  const url = new URL(href);
+  if (url.searchParams.has('preview')) {
+    const token = url.searchParams.get('preview') ?? '';
+    const published = readPublicationPreview(
+      token,
+      storage ?? window.sessionStorage,
+    );
+    return { published, dataUrl: url.href, localPreview: true };
+  }
+  const loaded = await loadPublication(
+    new URL('/published/manifest.json', url).href,
+    url.searchParams.get('event') ?? undefined,
+    signal,
+  );
+  return { ...loaded, localPreview: false };
 }

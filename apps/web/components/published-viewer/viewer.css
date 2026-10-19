@@ -236,3 +236,19 @@
     padding-bottom: 15px;
   }
 }
+
+.local-preview-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  background: #453052;
+  border-bottom: 1px solid #8c65a1;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.local-preview-banner a,
+.published-loading a {
+  color: #e9c6ff;
+  text-decoration: underline;
+}
