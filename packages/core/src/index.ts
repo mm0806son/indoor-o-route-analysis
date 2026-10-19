@@ -65,3 +65,5 @@ export * from './utils/graph-utils';
 export * from "./stairs";
 
 export * from "./publishing";
+
+export * from "./route-recommendations";

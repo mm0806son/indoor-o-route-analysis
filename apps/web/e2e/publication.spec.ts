@@ -224,7 +224,7 @@ test("mobile touch pans and pinches the map without selecting route nodes", asyn
   const canvas = page.locator("canvas[data-map-ready=true]");
   await expect(canvas).toBeVisible();
   // Wait for route search to settle before comparing the canvas raster.
-  await expect(page.getByRole("table", { name: "候选路线" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "候选路线" })).toBeVisible();
   const box = (await canvas.boundingBox())!;
   const x = box.x + box.width * 0.5,
     y = box.y + box.height * 0.5;

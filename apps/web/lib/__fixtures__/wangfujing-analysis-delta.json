@@ -312,6 +312,22 @@
       "to": "1565",
       "label": "",
       "type": "edge"
+    },
+    {
+      "from": "38",
+      "to": "1480",
+      "label": "",
+      "type": "edge"
+    }
+  ],
+  "removedEdges": [
+    {
+      "from": "56",
+      "to": "1563"
+    },
+    {
+      "from": "56",
+      "to": "1564"
     }
   ]
 }

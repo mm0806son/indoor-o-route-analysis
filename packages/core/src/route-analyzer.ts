@@ -1,3 +1,4 @@
+import { selectRouteRecommendations, findObjectivePath, type Recommendation, type RecommendationMetrics } from "./route-recommendations";
 import type { Control } from "./models/control";
 import type { Edge, Node } from "./models/graph";
 import type { Polygon } from "./models/polygon";
@@ -49,6 +50,7 @@ import {
  * Includes distance, path, difficulty metrics, and level validation.
  */
 export interface RouteInfo {
+  recommendation?: Recommendation;
   /** Total distance in meters */
   distance: number;
   /** Ordered list of node/control IDs forming the path */
@@ -887,6 +889,63 @@ export class RouteAnalyzer {
     const endId = directEdge ? toControlId : toNodeId || toControlId;
 
     return this.findAlternativePaths(startId, endId, k, fromControlId, toControlId);
+  }
+
+  /** Recommendations supplement the heuristic pool with independent full-graph objectives.
+   * Navigation proxy = cumulative floor travel + outgoing junctions (>2 neighbors).
+   * This is deliberately separate from the difficulty model and running time.
+   */
+  findRecommendedPathsBetweenControls(fromControlId: string, toControlId: string, k = 6): RouteInfo[] {
+    const candidates = this.findAlternativePathsBetweenControls(fromControlId, toControlId, k);
+    const start = this.controlNodeMap.get(fromControlId) ?? fromControlId;
+    const end = this.controlNodeMap.get(toControlId) ?? toControlId;
+    const levels = new Map<string, number>();
+    const level = (id: string) => {
+      if (levels.has(id)) return levels.get(id)!;
+      const node = this.findNodeOrControl(id);
+      const value = node ? this.getPolygonForNodeOrControl(node)?.level ?? 0 : 0;
+      levels.set(id, value);
+      return value;
+    };
+    // Coordinate order makes equal-cost search independent of input array order.
+    const ids = [...this.nodeControlMap.keys()].sort((a, b) => {
+      const pa = getCoordinates(this.nodeControlMap.get(a)!);
+      const pb = getCoordinates(this.nodeControlMap.get(b)!);
+      return level(a) - level(b) || pa.x - pb.x || pa.y - pb.y || a.localeCompare(b);
+    });
+    const neighbors = new Map(ids.map(id => [id, new Set<string>()]));
+    for (const edge of this.edges) {
+      neighbors.get(edge.from)?.add(edge.to);
+      if (!edge.oneWay) neighbors.get(edge.to)?.add(edge.from);
+    }
+    const junction = (id: string) => id !== start && id !== end && (neighbors.get(id)?.size ?? 0) > 2 ? 1 : 0;
+    const metrics = (route: RouteInfo): RecommendationMetrics => {
+      let ascent = 0, descent = 0, transitions = 0, decisions = 0;
+      for (let i = 1; i < route.path.length; i++) {
+        if (route.path[i - 1] === route.path[i]) continue;
+        const delta = level(route.path[i]) - level(route.path[i - 1]);
+        ascent += Math.max(0, delta);
+        descent += Math.max(0, -delta);
+        if (delta) transitions++;
+        decisions += junction(route.path[i - 1]);
+      }
+      return { navigationCost: decisions + ascent + descent, floors: ascent + descent, ascent, descent, transitions };
+    };
+    for (const objective of ['simple', 'floors', 'distance'] as const) {
+      const graph = new Map(ids.map(id => [id, new Map<string, number[]>()]));
+      for (const id of ids) for (const next of neighbors.get(id) ?? []) {
+        const floors = Math.abs(level(next) - level(id));
+        const distance = this.calculateEdgeDistanceMeters(this.findEdge(id, next), this.findNodeOrControl(id), this.findNodeOrControl(next));
+        if (!Number.isFinite(distance)) continue;
+        graph.get(id)!.set(next, objective === 'simple' ? [floors + junction(id), floors, distance] : objective === 'floors' ? [floors, distance, 0] : [distance, 0, 0]);
+      }
+      const path = findObjectivePath(start, end, graph);
+      if (path) candidates.push(this.buildRouteInfo(this.addControlsToPath(path, fromControlId, toControlId)));
+    }
+    return selectRouteRecommendations(candidates, metrics, route => route.path.map(id => {
+      const p = getCoordinates(this.nodeControlMap.get(id)!);
+      return { x: p.x * this.mapScale * 0.001, y: p.y * this.mapScale * 0.001, level: level(id) };
+    }), k);
   }
 
   /**

@@ -1,6 +1,7 @@
 import type {
   Course,
   CustomRoute,
+  RecommendationReason,
   RouteAnalyzer,
   RouteInfo,
   RouteLeg,
@@ -49,8 +50,17 @@ export interface PublishedRouteMetrics {
   difficultyFormula?: string;
   description: string;
   totalClimb?: number;
+  labels?: string[];
+  reasons?: RecommendationReason[];
+  branchingPoints?: number;
+  decisionPoints?: number;
+  stairs?: number;
+  repetitionRatio?: number;
+  floors?: number;
+  nearbyVariants?: number;
 }
 export interface PublishedLegAnalysis {
+  bestDistance: number;
   leg: RouteLeg;
   candidates: RouteLeg[];
   candidateMetrics: PublishedRouteMetrics[];
@@ -78,9 +88,17 @@ export function measurePublishedLeg(
   analyzer: RouteAnalyzer,
   leg: RouteLeg,
   bestDistance: number,
-  runningSpeed = 5,
+  runningSpeed = 3,
 ): PublishedRouteMetrics {
-  const path = leg.path.map((node) => node.nodeId);
+  // The deployed 0.2.5-test.2 Analysis scores a control-wrapped graph path.
+  // Preserve that exact convention for metrics; editing/export still use the legal normalized path.
+  const normalized = leg.path
+    .map((node) => node.nodeId)
+    .filter((id, i, path) => !i || id !== path[i - 1]);
+  const path = normalized.length
+    ? [leg.fromControlId, ...normalized, leg.toControlId]
+    : [];
+  const analysis = analyzer.analyzeRoute(path);
   return {
     ...distanceMetrics(
       analyzer.calculatePathDistance(path),
@@ -88,7 +106,11 @@ export function measurePublishedLeg(
       runningSpeed,
     ),
     difficulty: analyzer.calculatePathDifficulty(path),
-    description: analyzer.getRouteDescription(path),
+    description: analyzer.getRouteLabels(path).join(", "),
+    labels: analyzer.getRouteLabels(path),
+    branchingPoints: analysis.branchingPointNodeIds.length,
+    decisionPoints: analysis.decisionPoints,
+    stairs: analyzer.countIgnoreLengthEdgesInPath(path),
   };
 }
 function toLeg(route: RouteInfo, from: string, to: string): RouteLeg {
@@ -107,19 +129,8 @@ function candidateRoutes(
   from: string,
   to: string,
 ): RouteInfo[] {
-  const seen = new Set<string>();
-  // Exactly the editor Analysis search: bounded internally by 200 penalty iterations.
-  // Do not substitute different penalties, exhaustive enumeration, or invented extra routes.
-  return analyzer
-    .findAlternativePathsBetweenControls(from, to, 6)
-    .sort((a, b) => a.distance - b.distance)
-    .filter((route) => {
-      const key = JSON.stringify(toLeg(route, from, to).path);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 6);
+  // Release 0.2.5-test.2: keep objective order and nearby groups from the shared selector.
+  return analyzer.findRecommendedPathsBetweenControls(from, to, 6);
 }
 export function exploreLegs(
   analyzer: RouteAnalyzer,
@@ -130,32 +141,97 @@ export function exploreLegs(
     toLeg(route, from, to),
   );
 }
+/** Include hidden variants when determining the distance baseline, exactly as course-analysis.ts. */
+function shortestRecommended(routes: RouteInfo[]): RouteInfo | undefined {
+  return routes
+    .flatMap((route) => [route, ...(route.recommendation?.variants ?? [])])
+    .reduce<RouteInfo | undefined>(
+      (best, route) => (!best || route.distance < best.distance ? route : best),
+      undefined,
+    );
+}
+export function previousShortestPathsForLeg(
+  analyzer: RouteAnalyzer,
+  course: Pick<Course, "controls">,
+  legIndex: number,
+): string[][] {
+  if (
+    !Number.isInteger(legIndex) ||
+    legIndex < 0 ||
+    legIndex >= course.controls.length - 1
+  )
+    throw Error("赛段索引无效");
+  const previous: string[][] = [];
+  for (let i = 0; i < legIndex; i++) {
+    const from = course.controls[i].controlId,
+      to = course.controls[i + 1].controlId;
+    if (from === to) continue;
+    const best = shortestRecommended(candidateRoutes(analyzer, from, to));
+    if (best) previous.push(best.path);
+  }
+  return previous;
+}
 export function analyzePublishedLeg(
   analyzer: RouteAnalyzer,
   from: string,
   to: string,
   via: string[] = [],
-  runningSpeed = 5,
+  runningSpeed = 3,
+  options: {
+    previousShortestPaths?: string[][];
+    includeVariants?: boolean;
+  } = {},
 ): PublishedLegAnalysis {
   validateSpeed(runningSpeed);
-  const routes = candidateRoutes(analyzer, from, to);
-  if (!routes.length)
-    throw Error(`节点 ${from} → ${to} 不连通或禁止此方向通行`);
-  const bestDistance = routes[0].distance;
+  const recommended = candidateRoutes(analyzer, from, to);
+  const best = shortestRecommended(recommended);
+  if (!best) throw Error(`节点 ${from} → ${to} 不连通或禁止此方向通行`);
+  const routes = [...recommended];
+  if (options.includeVariants) {
+    const seen = new Set(
+      routes.map((route) => JSON.stringify(toLeg(route, from, to).path)),
+    );
+    for (const parent of recommended)
+      for (const variant of parent.recommendation?.variants ?? []) {
+        const key = JSON.stringify(toLeg(variant, from, to).path);
+        if (!seen.has(key)) {
+          seen.add(key);
+          routes.push(variant);
+        }
+      }
+  }
+  const bestDistance = best.distance;
   const candidates = routes.map((route) => toLeg(route, from, to));
-  const candidateMetrics = routes.map((route, i) => ({
-    ...measurePublishedLeg(analyzer, candidates[i], bestDistance, runningSpeed),
-    // Climb is unaffected by removing consecutive duplicate controls. Difficulty is not:
-    // use the normalized path just like the original Route Builder, not the wrapped Analysis path.
+  const previous = options.previousShortestPaths ?? [];
+  const candidateMetrics: PublishedRouteMetrics[] = routes.map((route) => ({
+    ...distanceMetrics(route.distance, bestDistance, runningSpeed),
+    difficulty: route.difficulty,
+    difficultyFormula: route.difficultyFormula,
+    description: route.description,
+    labels: route.labels,
     totalClimb: route.totalClimb,
+    reasons: route.recommendation?.reasons ?? [],
+    branchingPoints: route.branchingPointNodeIds.length,
+    decisionPoints: route.decisionPoints,
+    stairs: route.ignoreLengthEdges,
+    repetitionRatio: analyzer.calculateRepetitionRatio(route.path, previous),
+    floors: route.recommendation?.metrics.floors,
+    nearbyVariants: route.recommendation?.variants.length ?? 0,
   }));
   const leg = via.length ? buildLeg(analyzer, from, to, via) : candidates[0];
   return {
     leg,
     candidates,
     candidateMetrics,
+    bestDistance,
     previewMetrics: via.length
-      ? measurePublishedLeg(analyzer, leg, bestDistance, runningSpeed)
+      ? {
+          ...measurePublishedLeg(analyzer, leg, bestDistance, runningSpeed),
+          repetitionRatio: analyzer.calculateRepetitionRatio(
+            leg.path.map((node) => node.nodeId),
+            previous,
+          ),
+        }
       : candidateMetrics[0],
   };
 }

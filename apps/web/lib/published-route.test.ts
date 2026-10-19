@@ -63,7 +63,7 @@ it("uses the original Analysis algorithm and returns at most six distinct legal 
     1000,
   );
   const expected = graph
-    .findAlternativePathsBetweenControls("start", "finish", 6)
+    .findRecommendedPathsBetweenControls("start", "finish", 6)
     .slice(0, 6);
   const result = analyzePublishedLeg(graph, "start", "finish", [], 5);
   expect(result.candidates).toHaveLength(6);
@@ -75,9 +75,7 @@ it("uses the original Analysis algorithm and returns at most six distinct legal 
       expected[i].path.filter((id, j, path) => !j || id !== path[j - 1]),
     );
     expect(result.candidateMetrics[i].distance).toBe(expected[i].distance);
-    expect(result.candidateMetrics[i].difficulty).toBe(
-      graph.calculatePathDifficulty(candidate.path.map((p) => p.nodeId)),
-    );
+    expect(result.candidateMetrics[i].difficulty).toBe(expected[i].difficulty);
     expect(result.candidateMetrics[i].estimatedTime).toBe(
       expected[i].distance / 5,
     );
@@ -95,7 +93,7 @@ it("retains automatic alternatives while exploring a waypoint route", async () =
   const result = analyzePublishedLeg(analyzer, "a", "c", ["b"]);
   expect(result.candidates).toHaveLength(1);
   expect(result.previewMetrics.distance).toBe(20);
-  expect(result.previewMetrics.estimatedTime).toBe(4);
+  expect(result.previewMetrics.estimatedTime).toBe(20 / 3);
 });
 it("measures personal routes using the same graph distance and scoring model and validates speed", async () => {
   const { measurePublishedLeg } = await import("./published-route");
@@ -111,7 +109,7 @@ it("measures personal routes using the same graph distance and scoring model and
   expect(() => measurePublishedLeg(analyzer, leg, 10, 0)).toThrow();
 });
 
-it("scores normalized candidates identically to the same personal route (no duplicated control inflation)", async () => {
+it("scores personal and candidate paths using the same release Analysis convention", async () => {
   const { analyzePublishedLeg, measurePublishedLeg } = await import(
     "./published-route"
   );
@@ -123,7 +121,7 @@ it("scores normalized candidates identically to the same personal route (no dupl
     );
   });
 });
-it("matches the real Wangfujing MW21E first-leg screenshot: 93 m, D37, 18.54 s", async () => {
+it("matches the real Wangfujing release recommendation ordering and metrics", async () => {
   const { readFileSync } = await import("node:fs");
   const graph = JSON.parse(
     readFileSync(
@@ -146,6 +144,8 @@ it("matches the real Wangfujing MW21E first-leg screenshot: 93 m, D37, 18.54 s",
   );
   for (const edge of delta.edges)
     edges.set(JSON.stringify([edge.from, edge.to]), edge);
+  for (const edge of delta.removedEdges ?? [])
+    edges.delete(JSON.stringify([edge.from, edge.to]));
   const real = new RouteAnalyzer(
     delta.controls,
     [...vertices.values()] as import("@indoor-o-route-analysis/core").Node[],
@@ -159,10 +159,12 @@ it("matches the real Wangfujing MW21E first-leg screenshot: 93 m, D37, 18.54 s",
   );
   const result = analyzePublishedLeg(real, "S1", "59");
   expect(result.candidates).toHaveLength(6);
-  expect(result.candidateMetrics[0].distance).toBeCloseTo(92.70037511904029);
-  expect(result.candidateMetrics[0].difficulty).toBeCloseTo(37.03703703703704);
+  expect(result.candidateMetrics[0].distance).toBeCloseTo(107.19460403321258);
+  expect(result.bestDistance).toBeCloseTo(92.70037511904029);
+  expect(result.candidateMetrics[0].reasons).toContain("simple");
+  expect(result.candidateMetrics[0].difficulty).toBeCloseTo(40.74074074074074);
   expect(result.candidateMetrics[0].estimatedTime).toBeCloseTo(
-    18.540075023808058,
+    107.19460403321258 / 3,
   );
   result.candidates.forEach((leg, i) => {
     expect(result.candidateMetrics[i].difficulty).toBe(
@@ -170,4 +172,83 @@ it("matches the real Wangfujing MW21E first-leg screenshot: 93 m, D37, 18.54 s",
         .difficulty,
     );
   });
+});
+
+it("matches release 0.2.5-test.2 MW21E 3→4 screenshot and expands genuine nearby variants", async () => {
+  const { readFileSync } = await import("node:fs");
+  const base = JSON.parse(
+    readFileSync(
+      "../../packages/core/src/__fixtures__/wangfujing-stairs.json",
+      "utf8",
+    ),
+  );
+  const delta = JSON.parse(
+    readFileSync("lib/__fixtures__/wangfujing-analysis-delta.json", "utf8"),
+  );
+  const vertices = new Map(base.vertices.map((n: { id: string }) => [n.id, n]));
+  for (const n of delta.vertices) vertices.set(n.id, n);
+  const edges = new Map(
+    base.edges.map((e: { from: string; to: string }) => [
+      JSON.stringify([e.from, e.to]),
+      e,
+    ]),
+  );
+  for (const e of delta.edges) edges.set(JSON.stringify([e.from, e.to]), e);
+  for (const edge of delta.removedEdges ?? [])
+    edges.delete(JSON.stringify([edge.from, edge.to]));
+  const real = new RouteAnalyzer(
+    delta.controls,
+    [...vertices.values()] as import("@indoor-o-route-analysis/core").Node[],
+    [...edges.values()] as import("@indoor-o-route-analysis/core").Edge[],
+    delta.mapScale,
+    undefined,
+    base.polygons,
+  );
+  const { analyzePublishedLeg, previousShortestPathsForLeg } = await import(
+    "./published-route"
+  );
+  const course = {
+    controls: ["S1", "59", "32", "52", "56"].map((controlId) => ({
+      controlId,
+    })),
+  };
+  const previousShortestPaths = previousShortestPathsForLeg(real, course, 3);
+  const result = analyzePublishedLeg(real, "52", "56", [], 3, {
+    previousShortestPaths,
+  });
+  expect(result.bestDistance).toBeCloseTo(289.41991643678995);
+  expect(result.candidateMetrics.map((m) => m.reasons?.[0])).toEqual([
+    "simple",
+    "fewest floors",
+    "shortest",
+    undefined,
+    undefined,
+    undefined,
+  ]);
+  expect(result.candidateMetrics[2]).toMatchObject({
+    description: "b2, S, S, S, S, b",
+    branchingPoints: 26,
+    decisionPoints: 21,
+    stairs: 6,
+    repetitionRatio: 0,
+    totalClimb: 12,
+  });
+  expect(result.candidateMetrics[2].difficulty).toBeCloseTo(133.33333333333331);
+  expect(result.candidateMetrics[2].estimatedTime).toBeCloseTo(
+    289.41991643678995 / 3,
+  );
+  expect(result.candidateMetrics[0].distanceDelta).toBeCloseTo(
+    386.09736762023147 - 289.41991643678995,
+  );
+  expect(Math.round(result.candidateMetrics[1].repetitionRatio! * 100)).toBe(
+    40,
+  );
+  const compact = analyzePublishedLeg(real, "59", "32");
+  const expanded = analyzePublishedLeg(real, "59", "32", [], 5, {
+    includeVariants: true,
+  });
+  expect(expanded.candidates.length).toBeGreaterThan(compact.candidates.length);
+  expect(
+    new Set(expanded.candidates.map((c) => JSON.stringify(c.path))).size,
+  ).toBe(expanded.candidates.length);
 });

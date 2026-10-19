@@ -88,7 +88,7 @@ export interface CourseAnalysisProgress {
  * @param course - The course to analyze
  * @param event - The event containing controls and graph data
  * @param routeAnalyzer - Configured RouteAnalyzer instance
- * @param findAllRoutes - Whether to find all alternative routes or filter by unique stair sequences
+ * @param findAllRoutes - Whether to enumerate alternatives or select diverse recommendations
  */
 export async function* analyzeCourseLegsGenerator(
   course: Course,
@@ -129,17 +129,17 @@ export async function* analyzeCourseLegsGenerator(
         // Calculate alternative routes — use exhaustive search when findAllRoutes is enabled
         const allAlternatives = findAllRoutes
           ? routeAnalyzer.findAllAlternativePathsBetweenControls(fromControlId, toControlId, COURSE_OVERVIEW_MAX_ROUTES)
-          : routeAnalyzer.findAlternativePathsBetweenControls(fromControlId, toControlId, k);
+          : routeAnalyzer.findRecommendedPathsBetweenControls(fromControlId, toControlId, k);
 
-        // Ensure sorted by distance (shortest first)
-        allAlternatives.sort((a, b) => a.distance - b.distance);
+        // Enumeration remains distance ordered; recommendations preserve objective priority.
+        if (findAllRoutes) allAlternatives.sort((a, b) => a.distance - b.distance);
 
         // Calculate Repetition Ratio for all alternatives
-        allAlternatives.forEach(route => {
+        allAlternatives.flatMap(r => [r, ...(r.recommendation?.variants ?? [])]).forEach(route => {
           route.repetitionRatio = routeAnalyzer.calculateRepetitionRatio(route.path, previousShortestPaths);
         });
 
-        const bestRoute = allAlternatives[0];
+        const bestRoute = allAlternatives.flatMap(r => [r, ...(r.recommendation?.variants ?? [])]).reduce<RouteInfo | undefined>((best, route) => !best || route.distance < best.distance ? route : best, undefined);
 
         // Update visited paths with the shortest route of this leg
         if (bestRoute) {
@@ -152,21 +152,7 @@ export async function* analyzeCourseLegsGenerator(
         const decisionPoints = bestRoute ? bestRoute.decisionPoints : 0;
         const alternativeEdges = bestRoute ? bestRoute.alternativeEdges : 0;
 
-        // Filter alternatives if "find all routes" is unchecked
-        let alternatives: RouteInfo[] = allAlternatives;
-        if (!findAllRoutes) {
-          const uniqueStairSequences = new Set<string>();
-          alternatives = allAlternatives.filter((route) => {
-            const stairSeq = routeAnalyzer.getStairSequence(route.path);
-            if (uniqueStairSequences.has(stairSeq)) {
-              return false;
-            }
-            uniqueStairSequences.add(stairSeq);
-            return true;
-          });
-          // Limit to k routes when filtering
-          alternatives = alternatives.slice(0, k);
-        }
+        const alternatives = allAlternatives;
 
         const fromLabel = courseControlLabels[i];
         const toLabel = courseControlLabels[i + 1];
@@ -237,34 +223,22 @@ export function analyzeCourseLegs(
         // Use exhaustive search when findAllRoutes is enabled
         const allAlternatives = findAllRoutes
           ? routeAnalyzer.findAllAlternativePathsBetweenControls(fromControlId, toControlId, maxRoutes)
-          : routeAnalyzer.findAlternativePathsBetweenControls(fromControlId, toControlId, 6);
-        allAlternatives.sort((a, b) => a.distance - b.distance);
+          : routeAnalyzer.findRecommendedPathsBetweenControls(fromControlId, toControlId, 6);
+        if (findAllRoutes) allAlternatives.sort((a, b) => a.distance - b.distance);
 
         // Calculate Repetition Ratio for all alternatives
-        allAlternatives.forEach(route => {
+        allAlternatives.flatMap(r => [r, ...(r.recommendation?.variants ?? [])]).forEach(route => {
           route.repetitionRatio = routeAnalyzer.calculateRepetitionRatio(route.path, previousShortestPaths);
         });
 
-        const bestRoute = allAlternatives[0];
+        const bestRoute = allAlternatives.flatMap(r => [r, ...(r.recommendation?.variants ?? [])]).reduce<RouteInfo | undefined>((best, route) => !best || route.distance < best.distance ? route : best, undefined);
 
         // Update visited paths with the shortest route of this leg
         if (bestRoute) {
           previousShortestPaths.push(bestRoute.path);
         }
         
-        let alternatives: RouteInfo[] = allAlternatives;
-        if (!findAllRoutes) {
-          const uniqueStairSequences = new Set<string>();
-          alternatives = allAlternatives.filter((route) => {
-            const stairSeq = routeAnalyzer.getStairSequence(route.path);
-            if (uniqueStairSequences.has(stairSeq)) {
-              return false;
-            }
-            uniqueStairSequences.add(stairSeq);
-            return true;
-          });
-          alternatives = alternatives.slice(0, 6);
-        }
+        const alternatives = allAlternatives;
 
         const fromLabel = courseControlLabels[i];
         const toLabel = courseControlLabels[i + 1];
@@ -275,6 +249,7 @@ export function analyzeCourseLegs(
           fromControlId,
           toControlId,
           shortestDistance: bestRoute?.distance ?? 0,
+          totalClimb: bestRoute?.totalClimb ?? 0,
           decisionPoints: bestRoute?.decisionPoints ?? 0,
           alternativeEdges: bestRoute?.alternativeEdges ?? 0,
           difficulty: bestRoute?.difficulty ?? 0,

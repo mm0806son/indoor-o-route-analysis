@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import {
   useCallback,
   useEffect,
@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from "react";
+} from 'react';
 import {
   Copy,
   Download,
@@ -19,7 +19,7 @@ import {
   Undo2,
   Maximize,
   PanelBottomClose,
-} from "lucide-react";
+} from 'lucide-react';
 import {
   createPublishedRouteAnalyzer,
   exportPublishedRouteGpx,
@@ -29,8 +29,8 @@ import {
   type CustomRoute,
   type Course,
   type RouteLeg,
-} from "@indoor-o-route-analysis/core";
-import { loadViewerPublication } from "@/lib/published-loader";
+} from '@indoor-o-route-analysis/core';
+import { loadViewerPublication } from '@/lib/published-loader';
 import {
   backupDrafts,
   parseBackup,
@@ -38,19 +38,19 @@ import {
   retainedDraftKeys,
   writeDrafts,
   type DraftScope,
-} from "@/lib/published-storage";
+} from '@/lib/published-storage';
 import {
   makeDraft,
   measurePublishedLeg,
   type PublishedRouteMetrics,
-} from "@/lib/published-route";
-import { CandidateTable, formatRouteTime } from "./candidate-table";
-import { DifficultyTag } from "@/components/route-analysis/difficulty-tag";
-import { PublishedMap } from "./map";
-import "./viewer.css";
+} from '@/lib/published-route';
+import { CandidateTable, formatRouteTime } from './candidate-table';
+import { DifficultyTag } from '@/components/route-analysis/difficulty-tag';
+import { PublishedMap } from './map';
+import './viewer.css';
 function download(name: string, data: Blob) {
   const url = URL.createObjectURL(data),
-    a = document.createElement("a");
+    a = document.createElement('a');
   a.href = url;
   a.download = name;
   a.click();
@@ -82,13 +82,13 @@ function Icon({
 export default function PublishedViewer() {
   const [loaded, setLoaded] =
       useState<Awaited<ReturnType<typeof loadViewerPublication>>>(),
-    [error, setError] = useState(""),
+    [error, setError] = useState(''),
     [localPreview, setLocalPreview] = useState(false),
     [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    setError("");
-    setLocalPreview(new URLSearchParams(location.search).has("preview"));
+    setError('');
+    setLocalPreview(new URLSearchParams(location.search).has('preview'));
     loadViewerPublication(location.href, undefined, controller.signal)
       .then(setLoaded)
       .catch((e) => {
@@ -99,7 +99,7 @@ export default function PublishedViewer() {
   if (error)
     return (
       <main className="published-viewer published-loading">
-        <h1>{localPreview ? "本地预览" : "赛后复盘"}</h1>
+        <h1>{localPreview ? '本地预览' : '赛后复盘'}</h1>
         <p role="alert">{error}</p>
         {localPreview && (
           <p>预览只保存在当前标签页中。请返回编辑器重新生成本地预览。</p>
@@ -149,9 +149,9 @@ function EventViewer({
           <small>赛后复盘 · {published.event.startTime.date}</small>
         </div>
         <label>
-          赛程{" "}
+          线路{' '}
           <select
-            aria-label="赛程"
+            aria-label="线路"
             value={courseId}
             onChange={(e) => setCourseId(e.target.value)}
           >
@@ -171,7 +171,7 @@ function EventViewer({
           dataUrl={dataUrl}
         />
       ) : (
-        <p role="alert">没有公开赛程</p>
+        <p role="alert">没有公开线路</p>
       )}
     </main>
   );
@@ -202,7 +202,7 @@ function CourseViewer({
     [published, course],
   );
   const [routes, setRoutes] = useState<CustomRoute[]>([]),
-    [selected, setSelected] = useState(""),
+    [selected, setSelected] = useState(''),
     [ready, setReady] = useState(false),
     [storageBlocked, setStorageBlocked] = useState(false);
   const [history, setHistory] = useState<CustomRoute[][]>([]),
@@ -214,16 +214,17 @@ function CourseViewer({
     [candidateMetrics, setCandidateMetrics] = useState<PublishedRouteMetrics[]>(
       [],
     ),
-    [runningSpeed, setRunningSpeed] = useState(5),
+    [runningSpeed, setRunningSpeed] = useState(3),
+    [bestDistance, setBestDistance] = useState(0),
     [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState(""),
+  const [message, setMessage] = useState(''),
     [help, setHelp] = useState(false),
     [graph, setGraph] = useState(true),
     [fit, setFit] = useState(0),
     [collapsed, setCollapsed] = useState(false),
     [compare, setCompare] = useState(true);
   const [start, setStart] = useState(`${published.event.startTime.date}T10:00`),
-    [duration, setDuration] = useState("600");
+    [duration, setDuration] = useState('600');
   const worker = useRef<Worker | null>(null),
     mapImage = useRef<HTMLCanvasElement | null>(null),
     input = useRef<HTMLInputElement>(null);
@@ -245,10 +246,10 @@ function CourseViewer({
     try {
       const stored = readDrafts(localStorage, scope);
       setRoutes(stored);
-      setSelected(stored[0]?.id ?? "");
+      setSelected(stored[0]?.id ?? '');
       if (retainedDraftKeys(localStorage, scope).length)
         setMessage(
-          "检测到旧版本个人路线，已保留在本机但未套用到新地图。请在原版本中打开或备份。",
+          '检测到旧版本个人路线，已保留在本机但未套用到新地图。请在原版本中打开或备份。',
         );
       const timing = localStorage.getItem(
         `published-timing:${JSON.stringify(scope)}`,
@@ -256,8 +257,8 @@ function CourseViewer({
       if (timing) {
         const saved = JSON.parse(timing);
         if (
-          typeof saved.start === "string" &&
-          typeof saved.duration === "string"
+          typeof saved.start === 'string' &&
+          typeof saved.duration === 'string'
         ) {
           setStart(saved.start);
           setDuration(saved.duration);
@@ -265,7 +266,7 @@ function CourseViewer({
       }
     } catch {
       setStorageBlocked(true);
-      setMessage("本地草稿读取失败。原数据未覆盖；可以继续编辑并下载备份。");
+      setMessage('本地草稿读取失败。原数据未覆盖；可以继续编辑并下载备份。');
     }
     setReady(true);
   }, [scope]);
@@ -275,7 +276,7 @@ function CourseViewer({
       try {
         writeDrafts(localStorage, scope, next);
       } catch {
-        setMessage("浏览器保存失败，请下载路线备份。");
+        setMessage('浏览器保存失败，请下载路线备份。');
       }
     },
     [scope, storageBlocked],
@@ -321,7 +322,7 @@ function CourseViewer({
     setCandidateMetrics([]);
     if (!from || !to) return;
     setBusy(true);
-    const w = new Worker(new URL("./route.worker.ts", import.meta.url));
+    const w = new Worker(new URL('./route.worker.ts', import.meta.url));
     worker.current = w;
     w.onmessage = (e) => {
       setBusy(false);
@@ -330,12 +331,20 @@ function CourseViewer({
         setPreview(e.data.leg);
         setCandidates(e.data.candidates ?? []);
         setCandidateMetrics(e.data.candidateMetrics ?? []);
+        setBestDistance(
+          e.data.bestDistance ??
+            Math.min(
+              ...(e.data.candidateMetrics ?? []).map(
+                (metric: PublishedRouteMetrics) => metric.distance,
+              ),
+            ),
+        );
       }
       w.terminate();
     };
     w.onerror = () => {
       setBusy(false);
-      setMessage("路线计算失败，请重试。");
+      setMessage('路线计算失败，请重试。');
       w.terminate();
     };
     // Route search needs graph and scale only; do not clone the embedded map into each worker.
@@ -360,13 +369,14 @@ function CourseViewer({
     w.postMessage({
       published: searchData,
       courseId: course.id,
+      legIndex,
       from,
       to,
       via,
       runningSpeed: 5,
     });
     return () => w.terminate();
-  }, [published, course, race, map, from, to, via]);
+  }, [published, course, race, map, from, to, via, legIndex]);
   const saveTiming = (nextStart: string, nextDuration: string) => {
     setStart(nextStart);
     setDuration(nextDuration);
@@ -376,36 +386,36 @@ function CourseViewer({
         JSON.stringify({ start: nextStart, duration: nextDuration }),
       );
     } catch {
-      setMessage("时间设置保存失败，请记录当前输入。");
+      setMessage('时间设置保存失败，请记录当前输入。');
     }
   };
   const backup = useCallback(
     () =>
       download(
-        "我的路线备份.json",
-        new Blob([backupDrafts(scope, routes)], { type: "application/json" }),
+        '我的路线备份.json',
+        new Blob([backupDrafts(scope, routes)], { type: 'application/json' }),
       ),
     [scope, routes],
   );
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.matches("input,select,textarea")) return;
-      if (e.key.toLowerCase() === "z" && (e.ctrlKey || e.metaKey)) {
+      if ((e.target as HTMLElement)?.matches('input,select,textarea')) return;
+      if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
-      } else if (e.key.toLowerCase() === "n") {
+      } else if (e.key.toLowerCase() === 'n') {
         e.preventDefault();
         create();
-      } else if (e.key.toLowerCase() === "f") {
+      } else if (e.key.toLowerCase() === 'f') {
         setFit((x) => x + 1);
-      } else if (e.key === "?") {
+      } else if (e.key === '?') {
         setHelp((h) => !h);
-      } else if (e.key.toLowerCase() === "b") {
+      } else if (e.key.toLowerCase() === 'b') {
         backup();
       }
     };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
   }, [undo, redo, create, backup]);
   const apply = () => {
     if (!preview) return;
@@ -420,11 +430,11 @@ function CourseViewer({
         : [...routes, next],
     );
     setSelected(next.id);
-    setMessage("本赛段已加入我的路线");
+    setMessage('本赛段已加入我的路线');
   };
   const gpx = () => {
     try {
-      if (!route) throw Error("请先创建并完成个人路线");
+      if (!route) throw Error('请先创建并完成个人路线');
       validatePublishedRoute(published, route);
       const xml = exportPublishedRouteGpx(published, route, {
         startTime: new Date(start).toISOString(),
@@ -432,17 +442,17 @@ function CourseViewer({
       });
       download(
         `${route.name}.gpx`,
-        new Blob([xml], { type: "application/gpx+xml" }),
+        new Blob([xml], { type: 'application/gpx+xml' }),
       );
-      setMessage("已导出 GPX");
+      setMessage('已导出 GPX');
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     }
   };
   const selectedCandidate = candidates.findIndex(
     (candidate) =>
-      candidate.path.map((node) => node.nodeId).join("|") ===
-      preview?.path.map((node) => node.nodeId).join("|"),
+      candidate.path.map((node) => node.nodeId).join('|') ===
+      preview?.path.map((node) => node.nodeId).join('|'),
   );
   const displayedCandidateMetrics = useMemo(
     () =>
@@ -459,11 +469,11 @@ function CourseViewer({
         ? measurePublishedLeg(
             analyzer,
             preview,
-            candidateMetrics[0]?.distance ?? 0,
+            Number.isFinite(bestDistance) ? bestDistance : 0,
             runningSpeed,
           )
         : undefined,
-    [analyzer, preview, selectedCandidate, candidateMetrics, runningSpeed],
+    [analyzer, preview, selectedCandidate, bestDistance, runningSpeed],
   );
   const highlights = [
     ...(compare
@@ -485,7 +495,7 @@ function CourseViewer({
       ? [
           {
             path: route.legs[legIndex].path.map((node) => node.nodeId),
-            color: "#a78bfa",
+            color: '#a78bfa',
             progress: 1,
           },
         ]
@@ -499,7 +509,7 @@ function CourseViewer({
                 ? ROUTE_ANALYSIS_COLORS[
                     selectedCandidate % ROUTE_ANALYSIS_COLORS.length
                   ]
-                : "#c084fc",
+                : '#c084fc',
             progress: 1,
           },
         ]
@@ -551,7 +561,7 @@ function CourseViewer({
           fitToken={fit}
           onImage={acceptMap}
         />
-        <section className={`viewer-panel ${collapsed ? "collapsed" : ""}`}>
+        <section className={`viewer-panel ${collapsed ? 'collapsed' : ''}`}>
           <div className="viewer-toolbar">
             <Icon label="新建路线 (N)" onClick={create} disabled={!ready}>
               <Plus size={18} />
@@ -614,7 +624,7 @@ function CourseViewer({
             </div>
             <div className="analysis-settings">
               <label>
-                速度{" "}
+                速度{' '}
                 <input
                   aria-label="预计速度"
                   type="number"
@@ -626,10 +636,10 @@ function CourseViewer({
                     const speed = Number(event.target.value);
                     if (speed > 0 && speed <= 20) setRunningSpeed(speed);
                   }}
-                />{" "}
+                />{' '}
                 m/s
               </label>
-              <span>{busy ? "计算中…" : `${candidates.length} 条方案`}</span>
+              <span>{busy ? '计算中…' : `${candidates.length} 条方案`}</span>
             </div>
             {candidateMetrics.length > 0 && (
               <CandidateTable
@@ -681,7 +691,7 @@ function CourseViewer({
                   onClick={() => {
                     worker.current?.terminate();
                     setBusy(false);
-                    setMessage("已取消路线计算");
+                    setMessage('已取消路线计算');
                   }}
                 >
                   取消计算
@@ -697,7 +707,7 @@ function CourseViewer({
               我的路线
               <select
                 aria-label="我的路线"
-                value={route?.id ?? ""}
+                value={route?.id ?? ''}
                 onChange={(e) => setSelected(e.target.value)}
               >
                 <option value="" disabled>
@@ -736,7 +746,7 @@ function CourseViewer({
                     <b>{formatRouteTime(totalTime)}</b> 预计
                   </span>
                   <span title="已完成赛段的平均难度">
-                    <DifficultyTag difficulty={averageDifficulty} size="sm" />{" "}
+                    <DifficultyTag difficulty={averageDifficulty} size="sm" />{' '}
                     平均
                   </span>
                   <span>
@@ -761,7 +771,7 @@ function CourseViewer({
                     {route.legs.map((leg, index) => (
                       <tr
                         key={index}
-                        className={legIndex === index ? "selected" : ""}
+                        className={legIndex === index ? 'selected' : ''}
                         onClick={() => setLegIndex(index)}
                       >
                         <td>
@@ -770,7 +780,7 @@ function CourseViewer({
                             onClick={() => setLegIndex(index)}
                             aria-label={`查看赛段 ${index + 1}`}
                           >
-                            {index + 1}{" "}
+                            {index + 1}{' '}
                             <small>
                               {leg.fromControlId} → {leg.toControlId}
                             </small>
@@ -779,24 +789,24 @@ function CourseViewer({
                         <td>
                           {legMetrics[index]
                             ? `${Math.round(legMetrics[index]!.distance)} m`
-                            : "待完成"}
+                            : '待完成'}
                         </td>
                         <td>
                           {legMetrics[index]
                             ? `${Math.round(legMetrics[index]!.distanceDelta)} m`
-                            : "—"}
+                            : '—'}
                         </td>
                         <td>
                           {legMetrics[index]
                             ? formatRouteTime(legMetrics[index]!.estimatedTime)
-                            : "—"}
+                            : '—'}
                         </td>
                         <td>
                           {legMetrics[index]
                             ? legMetrics[index]!.timeDelta > 0
                               ? `+${formatRouteTime(legMetrics[index]!.timeDelta)}`
-                              : "—"
-                            : "—"}
+                              : '—'
+                            : '—'}
                         </td>
                         <td>
                           {legMetrics[index] ? (
@@ -805,7 +815,7 @@ function CourseViewer({
                               size="sm"
                             />
                           ) : (
-                            "—"
+                            '—'
                           )}
                         </td>
                       </tr>
@@ -859,7 +869,7 @@ function CourseViewer({
               accept=".json,application/json"
               onChange={async (e) => {
                 const file = e.target.files?.[0];
-                e.target.value = "";
+                e.target.value = '';
                 if (!file) return;
                 try {
                   const restored = parseBackup(
@@ -875,8 +885,8 @@ function CourseViewer({
                     ),
                   ];
                   commit(merged);
-                  setSelected(merged.at(-1)?.id ?? "");
-                  setMessage("备份已恢复；现有路线已保留");
+                  setSelected(merged.at(-1)?.id ?? '');
+                  setMessage('备份已恢复；现有路线已保留');
                 } catch (err) {
                   setMessage(err instanceof Error ? err.message : String(err));
                 }
@@ -909,12 +919,12 @@ function CourseViewer({
                 type="button"
                 onClick={() => {
                   if (!mapImage.current) {
-                    setMessage("地图尚未加载");
+                    setMessage('地图尚未加载');
                     return;
                   }
                   mapImage.current.toBlob((blob) => {
-                    if (blob) download("比赛地图.png", blob);
-                  }, "image/png");
+                    if (blob) download('比赛地图.png', blob);
+                  }, 'image/png');
                 }}
               >
                 下载地图
@@ -931,7 +941,7 @@ function CourseViewer({
             type="button"
             aria-label="关闭提示"
             title="关闭提示"
-            onClick={() => setMessage("")}
+            onClick={() => setMessage('')}
             style={{ marginLeft: 12 }}
           >
             ×
@@ -944,7 +954,7 @@ function CourseViewer({
             <h2>赛后复盘使用说明</h2>
             <p>
               选择赛段后自动显示最多 6
-              条路线。点击表格选择方案，开启“地图对比”同时查看其他方案。长度、预计时间和难度沿用路线分析规则；速度可在表格上方调整。
+              条路线。点击卡片选择方案，开启“地图对比”同时查看其他方案。长度、预计时间和难度沿用路线分析规则；速度可在列表上方调整。卡片图标依次表示分支点、决策点、楼梯数和与先前赛段最短路线的重复比例。
             </p>
             <p>
               在地图上点选途经节点，点击“采用此赛段”保存到我的路线。下方赛段表可切换和检查全程。拖动平移，双指或滚轮缩放。

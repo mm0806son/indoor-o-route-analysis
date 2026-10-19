@@ -410,3 +410,97 @@
 .viewer-status button {
   pointer-events: auto;
 }
+
+.candidate-route-list {
+  list-style: none;
+  padding: 0;
+  margin: 3px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.published-viewer .candidate-route-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  text-align: left;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 11px;
+}
+.published-viewer .candidate-route-card:hover {
+  background: #211b28;
+}
+.published-viewer .candidate-route-card.selected {
+  background: #6b35a3;
+  color: #fff;
+}
+.route-color-dot {
+  flex: 0 0 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+.route-card-content {
+  flex: 1;
+  min-width: 0;
+}
+.route-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+.route-card-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 7px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.route-auto-label {
+  opacity: 0.75;
+  font-size: 10px;
+  font-weight: 400;
+}
+.route-card-timing {
+  flex-shrink: 0;
+  white-space: nowrap;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+}
+.route-card-metrics {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+  font:
+    11px ui-monospace,
+    monospace;
+  opacity: 0.85;
+}
+.route-card-metrics > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.metric-separator {
+  opacity: 0.6;
+}
+@media (max-width: 400px) {
+  .route-card-heading {
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .route-card-timing {
+    margin-left: auto;
+  }
+}
