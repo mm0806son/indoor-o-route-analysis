@@ -63,3 +63,5 @@ export * from './utils/geometry';
 export * from './utils/graph-utils';
 
 export * from "./stairs";
+
+export * from "./publishing";

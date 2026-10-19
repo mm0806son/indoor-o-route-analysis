@@ -1,5 +1,7 @@
 "use client"
 
+import { loadPdfJs } from "@/lib/load-pdfjs";
+
 import { useState, useCallback, useEffect, useMemo } from "react";
 // import dynamic from "next/dynamic"; // Removed dynamic import
 import { Info } from "lucide-react"; // Reduced imports
@@ -19,10 +21,10 @@ import { ControlsTab } from "./controls-tab";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs-dist is untyped dynamic import
 let pdfjsLib: any = null;
 if (typeof window !== "undefined") {
-  import("pdfjs-dist").then((module) => {
+  loadPdfJs().then((module) => {
     pdfjsLib = module;
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  });
+  }).catch(error => console.error("Failed to initialize local PDF renderer", error));
 }
 
 // import OpenEventDialog from "./open-event-dialog"; // Removed

@@ -2,7 +2,8 @@
 
 import "@/lib/polyfills";
 import { useEffect } from "react";
-import { AppDataProvider } from "@indoor-o-route-analysis/ui";
+import { usePathname } from "next/navigation";
+import { SessionBoundary, isPublishedSession } from "@/components/publication/session-boundary";
 import "./globals.css";
 
 export default function RootLayout({
@@ -10,9 +11,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
+  const published = isPublishedSession(pathname, process.env.NEXT_PUBLIC_PUBLISHED_VIEWER === "1");
+
   useEffect(() => {
     // Set page title and meta tags dynamically
-    document.title = "Indoor Orienteering Route Analysis";
+    document.title = published ? "赛后路线复盘" : "Indoor Orienteering Route Analysis";
 
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
@@ -27,7 +31,7 @@ export default function RootLayout({
     // Register service worker for PWA (production only)
     let updateInterval: NodeJS.Timeout | null = null;
 
-    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    if (!published && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker.register('/sw.js').then(
         (registration) => {
           console.log('Service Worker registered:', registration);
@@ -55,14 +59,15 @@ export default function RootLayout({
         clearInterval(updateInterval);
       }
     };
-  }, []);
+  }, [published]);
 
   return (
-    <html lang="en">
+    <html lang={published ? "zh-CN" : "en"}>
       <head>
         <link rel="icon" href="/favicon-32x32.png" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="manifest" href="/manifest.json" />
+        {!published && <link rel="manifest" href="/manifest.json" />}
+        {process.env.NEXT_PUBLIC_PUBLISHED_VIEWER === "1" && <meta name="publication-build" content="1" />}
         <meta name="theme-color" content="#000000" />
         <meta
           name="viewport"
@@ -70,7 +75,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`font-sans antialiased`}>
-        <AppDataProvider>{children}</AppDataProvider>
+        <SessionBoundary>{children}</SessionBoundary>
       </body>
     </html>
   );

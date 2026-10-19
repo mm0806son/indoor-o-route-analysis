@@ -1,5 +1,7 @@
 "use client"
 
+import { loadPdfJs } from "@/lib/load-pdfjs";
+
 import type React from "react"
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -19,10 +21,10 @@ export {
 let pdfjsLib: any = null;
 
 if (typeof window !== "undefined") {
-  import("pdfjs-dist").then((module) => {
+  loadPdfJs().then((module) => {
     pdfjsLib = module;
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  });
+  }).catch(error => console.error("Failed to initialize local PDF renderer", error));
 }
 
 interface MapViewerProps {
@@ -181,7 +183,7 @@ export default function MapViewer({
       try {
         // Wait for pdfjsLib to be loaded
         if (!pdfjsLib) {
-          const module = await import("pdfjs-dist");
+          const module = await loadPdfJs();
           pdfjsLib = module;
           pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         }
@@ -331,7 +333,7 @@ export default function MapViewer({
     const loadWhenReady = async () => {
       if (!pdfjsLib) {
         try {
-          const module = await import("pdfjs-dist");
+          const module = await loadPdfJs();
           pdfjsLib = module;
           pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         } catch (e) {

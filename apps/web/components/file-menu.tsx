@@ -7,6 +7,7 @@ import { useAppData } from "@indoor-o-route-analysis/ui";
 import { getMapFile, getEventPdfData } from "@indoor-o-route-analysis/core";
 import { arrayBufferToBase64 } from "@indoor-o-route-analysis/core";
 import { ConfirmDialog } from "@indoor-o-route-analysis/ui";
+import PublishDialog from "@/components/publishing/publish-dialog";
 import SettingsDialog from "@/components/settings-dialog";
 import type { EventData, RaceCourseData } from "@indoor-o-route-analysis/core";
 import { parseEventFromIOFXML, exportEventToIOFXML } from "@indoor-o-route-analysis/core";
@@ -115,6 +116,7 @@ export default function FileMenu({ onNavigate, activeScreen: _activeScreen }: Fi
   const [showMenu, setShowMenu] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const importIOFInputRef = useRef<HTMLInputElement>(null);
@@ -282,6 +284,9 @@ export default function FileMenu({ onNavigate, activeScreen: _activeScreen }: Fi
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.shiftKey && e.key.toLowerCase() === "p") {
+        e.preventDefault(); setShowPublishDialog(true); return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
 
@@ -778,6 +783,9 @@ Class assignments: ${parsedClassAssignments.length}`);
               </button>
 
               <div className="my-1 border-t border-border" />
+              <button className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex items-center gap-2" onClick={() => { closeMenu(); setShowPublishDialog(true); }} title="准备赛后公开包：选择赛程、推荐路线和当前比赛 (Alt+Shift+P)">
+                <FileDown className="h-4 w-4" /> 赛后发布…
+              </button>
               <button
                 className="w-full text-left px-4 py-2 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
                 onClick={() => {
@@ -823,6 +831,8 @@ Class assignments: ${parsedClassAssignments.length}`);
           e.currentTarget.value = "";
         }}
       />
+
+      {showPublishDialog && <PublishDialog onClose={() => setShowPublishDialog(false)} />}
 
       <SettingsDialog
         isOpen={showSettingsDialog}

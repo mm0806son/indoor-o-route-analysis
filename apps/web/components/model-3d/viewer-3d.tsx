@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+import { loadPdfJs } from "@/lib/load-pdfjs";;
 
 import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
@@ -249,7 +251,7 @@ function Scene({
       if (isPdf) {
         try {
           if (!pdfjsLib) {
-            const module = await import("pdfjs-dist");
+            const module = await loadPdfJs();
             pdfjsLib = module;
             pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
           }

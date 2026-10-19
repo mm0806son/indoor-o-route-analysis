@@ -1,4 +1,4 @@
-import AppShell from "@/components/app-shell";
+import HomePage from "../page";
 
 export function generateStaticParams() {
   return [
@@ -16,5 +16,5 @@ export function generateStaticParams() {
 }
 
 export default function ScreenPage() {
-  return <AppShell />;
+  return <HomePage />;
 }

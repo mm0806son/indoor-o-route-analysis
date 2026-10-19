@@ -6,9 +6,9 @@ This is an experimental web application for analyzing and optimizing indoor orie
 
 Use **Stairs** after Graph Editor to annotate up/down stair nodes, connect matching adjacent floors without dragging, and highlight the same staircase across the map. Configure the floor order in Stairs, Graph Editor or 3D Model. Course Setting includes the same stair selector. [Requirements and workflow](docs/stair-view-requirements.md). [Versioned trial deployment](docs/versioned-deployment.md).
 
-## Post-race publishing proposal
+## Post-race publishing
 
-A proposed athlete-facing edition would provide a fixed link with organizer-controlled current and archived events, with route exploration, organizer-recommended routes, a personal Route Builder, and GPX export. See the [requirements draft in Chinese](docs/post-race-publishing-requirements.md) for scope, hosting options, and open decisions. This edition is not yet implemented.
+Use **File → 赛后发布…** (Alt+Shift+P) to import a Course Setting JSON file, select public courses and recommended routes, and prepare a publication bundle. The separate athlete viewer supports mobile maps, route choices, local personal routes, and synthetic-coordinate GPX export. A dedicated static build keeps the public site separate from the editor. See the [publishing guide](docs/post-race-publishing-guide.md) and [requirements](docs/post-race-publishing-requirements.md). Cloud hosting and QuickRoute / Headcam O compatibility still require deployment and external acceptance testing.
 
 ## Contributing
 

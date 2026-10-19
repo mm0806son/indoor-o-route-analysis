@@ -5,15 +5,17 @@
   "scripts": {
     "onboard": "cat ../../CLAUDE.md",
     "postinstall": "node scripts/setup-pdfjs.mjs",
-    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
-    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev",
+    "build": "node scripts/setup-pdfjs.mjs && NEXT_TELEMETRY_DISABLED=1 next build",
+    "dev": "node scripts/setup-pdfjs.mjs && NEXT_TELEMETRY_DISABLED=1 next dev",
     "lint": "biome lint .",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "test": "vitest --passWithNoTests",
     "test:ui": "vitest --ui --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:published": "node scripts/setup-pdfjs.mjs && NEXT_PUBLIC_PUBLISHED_VIEWER=1 NEXT_TELEMETRY_DISABLED=1 next build",
+    "package:published": "tsx scripts/package-published.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -35,3 +35,9 @@ if (!found) {
   console.warn(`Tried: ${workerPaths.join(", ")}`)
   process.exit(1)
 }
+
+// Ship the matching native ESM library alongside its worker. No CDN is required.
+const libraryPath = "node_modules/pdfjs-dist/build/pdf.min.mjs"
+if (!fs.existsSync(libraryPath)) throw new Error("Missing PDF.js native module")
+fs.copyFileSync(libraryPath, path.join(publicDir, "pdf.min.mjs"))
+console.log("✓ Matching PDF.js native module copied")

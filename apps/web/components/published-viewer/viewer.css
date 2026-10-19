@@ -1,0 +1,238 @@
+.published-viewer {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #17151d;
+  color: #eee;
+  font:
+    14px system-ui,
+    sans-serif;
+  overflow: hidden;
+}
+.published-viewer header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 12px;
+  border-bottom: 1px solid #40374c;
+}
+.published-viewer small {
+  display: block;
+  color: #aaa;
+  font-size: 11px;
+}
+.published-viewer button,
+.published-viewer input,
+.published-viewer select {
+  background: #292331;
+  border: 1px solid #554760;
+  border-radius: 5px;
+  color: #eee;
+  padding: 7px;
+  min-height: 36px;
+}
+.published-viewer button {
+  cursor: pointer;
+}
+.published-viewer button:hover {
+  background: #44304f;
+}
+.published-viewer button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.published-viewer button:focus-visible,
+.published-viewer input:focus-visible,
+.published-viewer select:focus-visible {
+  outline: 2px solid #c084fc;
+}
+.viewer-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.published-map {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+.map-error {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: #211b2b;
+  padding: 12px;
+  z-index: 1;
+}
+.map-zoom {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  gap: 5px;
+}
+.map-zoom button {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+}
+.viewer-panel {
+  width: 320px;
+  overflow: auto;
+  background: #211b29;
+  border-left: 1px solid #40374c;
+}
+.viewer-toolbar {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  padding: 6px;
+}
+.viewer-toolbar button {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 38px;
+}
+.panel-content {
+  padding: 8px 12px;
+}
+.panel-content > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 7px 0;
+}
+.panel-content p {
+  margin: 7px 0;
+}
+.panel-content .hint {
+  color: #b9afc1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.panel-content hr {
+  border-color: #40374c;
+  margin: 12px 0;
+}
+.panel-content input[type="checkbox"] {
+  min-height: 0;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.legend {
+  font-size: 18px;
+}
+.recommended {
+  color: #f59e0b;
+}
+.candidate {
+  color: #38bdf8;
+}
+.personal {
+  color: #c084fc;
+}
+.waypoints {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.viewer-status {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  background: #4b315b;
+  padding: 10px;
+  border: 1px solid #c084fc;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.viewer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: #000a;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.viewer-modal section {
+  background: #211b29;
+  max-width: 550px;
+  max-height: 85dvh;
+  overflow: auto;
+  border: 1px solid #745785;
+  padding: 20px;
+  border-radius: 10px;
+}
+.viewer-modal p {
+  margin: 12px 0;
+  line-height: 1.6;
+}
+.viewer-modal h2 {
+  font-size: 18px;
+}
+.published-loading {
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.viewer-panel.collapsed .panel-content {
+  display: none;
+}
+.viewer-panel.collapsed {
+  width: 58px;
+}
+@media (max-width: 700px) {
+  .published-viewer header {
+    font-size: 12px;
+    padding: 6px;
+  }
+  .published-viewer header select {
+    max-width: 140px;
+  }
+  .viewer-workspace {
+    flex-direction: column;
+  }
+  .published-map {
+    min-height: 35dvh;
+  }
+  .viewer-panel,
+  .viewer-panel.collapsed {
+    width: 100%;
+    max-height: 44dvh;
+    border-left: 0;
+    border-top: 1px solid #40374c;
+    flex-shrink: 0;
+  }
+  .viewer-panel.collapsed {
+    max-height: 52px;
+  }
+  .viewer-toolbar {
+    flex-wrap: nowrap;
+    justify-content: space-around;
+    position: sticky;
+    top: 0;
+    background: #211b29;
+    z-index: 2;
+  }
+  .viewer-toolbar button {
+    min-width: 42px;
+    min-height: 42px;
+  }
+  .viewer-status {
+    bottom: 54px;
+    font-size: 12px;
+  }
+  .panel-content {
+    padding-bottom: 15px;
+  }
+}
