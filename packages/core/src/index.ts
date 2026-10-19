@@ -35,6 +35,8 @@ export * from './io/training-data-io';
 export * from './io/training-data-xml-generator';
 export * from './io/xml-io';
 export * from './map-coordinates';
+// Automatic routing-graph extraction from map rasters
+export * from './map-graph-extraction/index';
 export * from './migrations';
 export * from './models/control';
 export * from './models/course';
@@ -59,3 +61,5 @@ export * from './utils';
 // Utils sub-module
 export * from './utils/geometry';
 export * from './utils/graph-utils';
+
+export * from "./stairs";

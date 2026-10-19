@@ -42,6 +42,7 @@ import {
  *   --help                  Show this help
  */
 import { createCanvas } from "@napi-rs/canvas";
+import { withResolvedGenericFonts } from "./lib/fonts.js";
 import { computeLayout } from "./lib/layout.js";
 import { resolveLegByLabel } from "./lib/leg-resolver.js";
 import { loadEventFile } from "./lib/loader.js";
@@ -409,7 +410,9 @@ async function main(): Promise<void> {
   // interface except for fillStyle/strokeStyle, which it types more broadly
   // (string | CanvasGradient | CanvasPattern) since we only ever assign
   // string colors to them; hence the one contained cast here.
-  const ctx = canvas.getContext("2d") as unknown as MinimalCanvas2DContext;
+  const ctx = withResolvedGenericFonts(
+    canvas.getContext("2d"),
+  ) as unknown as MinimalCanvas2DContext;
 
   for (let i = 0; i < frames.length; i++) {
     renderRouteVizFrame(ctx, edges, layout, legControls, frames[i]);

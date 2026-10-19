@@ -34,6 +34,8 @@ export interface ClassCourseAssignment {
 }
 
 export interface RaceCourseData {
+  /** Explicit physical floor order, lowest first. */
+  stairFloorOrder?: number[];
   courses?: Course[];
   controls?: Control[];
   maps?: MapData[];

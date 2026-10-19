@@ -34,7 +34,7 @@ export default function GraphEditorInfoDialog({
             <div>
               <p className="font-medium text-foreground mb-1">Introduction</p>
               <p>
-                The Graph Editor is where you create the routing network that defines all possible paths
+                Stair nodes can be annotated with a code (A or A1), a configured floor and up/down/both ports. Lowercase input selects down; the staircase identity ignores case. In the node form, Ctrl/Cmd+Enter saves metadata and preserves edges; Alt+Enter saves and connects. Save and connect adds unique adjacent bidirectional matches with ignored length. Configure floor order in this panel or 3D Model. Use the Stairs screen for click-to-connect, conversion, diagnostics and undo/redo. Graph JSON preserves annotations and floor order. The Graph Editor is where you create the routing network that defines all possible paths
                 through your venue. This graph is the foundation for route analysis, difficulty calculations,
                 and optimal path finding. Nodes represent decision points (intersections, corners, doorways),
                 while edges represent the passages between them. A well-constructed graph accurately models

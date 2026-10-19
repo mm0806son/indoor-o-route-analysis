@@ -1,4 +1,5 @@
 "use client";
+import FloorOrder from "@/components/stairs/floor-order";
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@indoor-o-route-analysis/ui";
@@ -219,6 +220,7 @@ export default function Model3DPropertiesPanel({
 
         {/* Properties */}
         <ScrollArea className="flex-1">
+        <FloorOrder key={selectedEvent?.id} />
           <div className="p-4 space-y-4">
             {/* Verified - No Issues */}
             {verified && findings.length === 0 && (

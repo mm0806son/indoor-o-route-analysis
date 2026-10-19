@@ -1,5 +1,7 @@
 "use client"
 
+import StairSelector from "@/components/stairs/selector";
+
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useAppData } from "@indoor-o-route-analysis/ui";
 import { RouteAnalyzer, getDifficultyCategory } from "@indoor-o-route-analysis/core";
@@ -24,6 +26,7 @@ export default function CourseSetting() {
     mapViewerRef.current?.flyTo(point);
   };
 
+  const [stairCode, setStairCode] = useState("");
   const [showBackgroundMap, setShowBackgroundMap] = useState(true);
   const [isMapMuted, setIsMapMuted] = useState(false);
   const [showDifficultyColors, setShowDifficultyColors] = useState(false);
@@ -283,6 +286,7 @@ export default function CourseSetting() {
       {/* Main View */}
       <div className="flex-1 flex overflow-hidden min-w-0">
         <CourseSettingMapViewer
+          stairCode={stairCode}
           ref={mapViewerRef}
           map={activeMap}
           selectedControlId={selectedControlId}
@@ -295,6 +299,9 @@ export default function CourseSetting() {
         />
 
         {/* Properties Panel */}
+        <div className="flex flex-col min-h-0 w-80 shrink-0">
+        <StairSelector race={raceCourse} value={stairCode} onChange={setStairCode} />
+        <div className="flex-1 min-h-0">
         <CourseSettingPropertiesPanel
           selectedCourseId={selectedCourseId}
           onSelectedCourseChange={setSelectedCourseId}
@@ -311,6 +318,8 @@ export default function CourseSetting() {
           autoAddToCourse={autoAddToCourse}
           onAutoAddToCourseChange={setAutoAddToCourse}
         />
+        </div>
+        </div>
       </div>
     </div>
   );

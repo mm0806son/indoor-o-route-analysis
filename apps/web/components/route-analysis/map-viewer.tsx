@@ -810,7 +810,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
 
     const lastResetKeyRef = useRef<string>("");
     const lastSelectionRef = useRef<string | null>(null);
-    const [, forceRender] = useState(0);
+    const [renderTick, forceRender] = useState(0);
     const playbackCanvasRef = useRef<HTMLCanvasElement>(null);
     type CachedGeoSegment = { points: Array<{ x: number; y: number }>; isMapSegmentTransition: boolean };
     type CachedRouteGeo = { color: string; segments: CachedGeoSegment[]; totalLength: number; strokeWidth: number };
@@ -1113,7 +1113,12 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
         return routes;
       }
       return [routes[selectedRoute]].filter(Boolean);
-    }, [routes, selectedRoute]); // overrideRoutesRef is read during export which triggers forceRender state update
+      // `renderTick` is in the dependency list because the memo reads
+      // `overrideRoutesRef`, which the video export mutates before calling
+      // forceRender. A state update alone does not invalidate a memo, so
+      // without the tick the export's combined all-legs route never reached
+      // the renderer and the exported video came out static.
+    }, [routes, selectedRoute, renderTick]);
 
     const renderSvgContent = (state: MapViewerState, includeWhiteBackground: boolean = false) => {
       const controlPxMap = new Map<string, ControlWithPos>();
@@ -1499,6 +1504,7 @@ const RouteAnalysisMapViewer = forwardRef<RouteAnalysisMapViewerHandle, RouteAna
                   playPosRef.current = pos;
                   playCircle = (
                     <circle
+                      data-testid="playback-runner"
                       cx={pos.x}
                       cy={pos.y}
                       r={12}

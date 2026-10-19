@@ -1,4 +1,5 @@
 "use client";
+import StairOverlay from "@/components/stairs/overlay";
 
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import dynamic from "next/dynamic";
@@ -24,6 +25,7 @@ const getNextControlCode = (controls: Control[]) => {
 };
 
 interface CourseSettingMapViewerProps {
+  stairCode?: string;
   map?: MapData;
   selectedControlId?: string | null;
   onControlSelected?: (controlId: string) => void;
@@ -43,6 +45,7 @@ const CourseSettingMapViewer = forwardRef<CourseSettingMapViewerHandle, CourseSe
   (
     {
       map,
+      stairCode,
       selectedControlId,
       onControlSelected,
       onMoveControl,
@@ -376,6 +379,7 @@ const CourseSettingMapViewer = forwardRef<CourseSettingMapViewerHandle, CourseSe
       {(state: MapViewerState) => {
         mapStateRef.current = state;
         return (
+          <>
           <svg
             width={state.pdfDimensions.width}
             height={state.pdfDimensions.height}
@@ -434,6 +438,8 @@ const CourseSettingMapViewer = forwardRef<CourseSettingMapViewerHandle, CourseSe
               );
             })()}
           </svg>
+          {stairCode && <StairOverlay state={state} map={map} nodes={selectedEvent?.raceCourses?.[0]?.vertices ?? []} edges={selectedEvent?.raceCourses?.[0]?.edges ?? []} code={stairCode} />}
+          </>
         );
       }}
     </MapViewer>

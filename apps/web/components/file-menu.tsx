@@ -484,6 +484,9 @@ export default function FileMenu({ onNavigate, activeScreen: _activeScreen }: Fi
   const exportIOFXML = useCallback(async () => {
     if (!selectedEvent) return;
 
+    if (selectedEvent.raceCourses?.some(r => r.stairFloorOrder?.length || r.vertices?.some(n => n.stair))) {
+      if (!window.confirm("IOF XML preserves graph routing but omits stair node annotations and floor order. Use JSON for a complete backup. Continue XML export?")) return;
+    }
     const xml = exportEventToIOFXML(selectedEvent);
     const dateStr = selectedEvent.startTime.date || new Date().toISOString().split("T")[0];
     const filename = `${dateStr} ${selectedEvent.name}.xml`;

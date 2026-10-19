@@ -1,0 +1,23 @@
+{
+  "name": "mapgraph-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mapgraph-cli": "./index.ts"
+  },
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx index.ts",
+    "typecheck": "tsc --noEmit",
+    "fit": "tsx fit.ts"
+  },
+  "dependencies": {
+    "@indoor-o-route-analysis/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

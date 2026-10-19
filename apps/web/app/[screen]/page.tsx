@@ -5,6 +5,7 @@ export function generateStaticParams() {
     { screen: "event-manager" },
     { screen: "course-setting" },
     { screen: "graph-editor" },
+    { screen: "stairs" },
     { screen: "route-builder" },
     { screen: "route-analysis" },
     { screen: "event-analysis" },

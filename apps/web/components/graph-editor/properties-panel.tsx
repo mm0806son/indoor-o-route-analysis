@@ -1,5 +1,8 @@
 "use client"
 
+import FloorOrder from "@/components/stairs/floor-order";
+import StairNodeEditor from "@/components/stairs/node-editor";
+
 import { useMemo, useState, useCallback, useEffect } from "react";
 import {
   Menu,
@@ -121,14 +124,13 @@ export default function GraphEditorPropertiesPanel({
         type: "control",
       })),
       ...vertices.map((v) => ({
-        id: v.id,
-        x: v.x,
-        y: v.y,
+        ...v,
         type: "node",
       })),
     ];
 
     const graphData = {
+      stairFloorOrder: raceCourse?.stairFloorOrder ?? [],
       nodes: combinedNodes,
       edges: edges,
     };
@@ -242,6 +244,7 @@ export default function GraphEditorPropertiesPanel({
             id: n.id,
             x: n.x,
             y: n.y,
+            ...(n.stair ? { stair: n.stair } : {}),
           }));
 
         const importedEdges = graphData.edges;
@@ -257,6 +260,7 @@ export default function GraphEditorPropertiesPanel({
 
         const updatedRaceCourse = {
           ...raceCourse,
+          stairFloorOrder: graphData.stairFloorOrder ?? [],
           vertices: importedVertices,
           edges: importedEdges,
         };
@@ -546,6 +550,11 @@ export default function GraphEditorPropertiesPanel({
       {renderToolbar()}
       {/* Properties Section - Scrollable */}
       <div className="flex-1 overflow-auto p-6 pb-0">
+        <FloorOrder key={selectedEvent?.id} />
+        {isNodeProperties && (() => {
+          const node = selectedEvent?.raceCourses?.[0]?.vertices?.find(n => n.id === properties?.id);
+          return node ? <StairNodeEditor key={`${selectedEvent?.id}:${node.id}:${JSON.stringify(node.stair)}`} node={node} /> : null;
+        })()}
         {/* Node Properties */}
         {isNodeProperties && properties?.type === "node" && (() => {
           const nodeProps = properties;

@@ -35,7 +35,7 @@ export default function Model3DInfoDialog({
               <p className="font-medium text-foreground mb-1">Introduction</p>
               <p>
                 The 3D Model Editor allows you to create a three-dimensional representation of your venue
-                by defining floor polygons for each level. This visualization helps competitors understand
+                by defining floor polygons for each level. The Floor order field separately defines physical adjacency from lowest to highest (for example -2, -1, 1, 2). Include intermediate floors even if their stair nodes are missing. Reordering preserves graph edges; review conflicts in the Stairs screen. This visualization helps competitors understand
                 the vertical layout of multi-story venues and can be used for course previews, training materials,
                 or promotional content. Each polygon represents a floor area that will be textured with the
                 corresponding section of your map.

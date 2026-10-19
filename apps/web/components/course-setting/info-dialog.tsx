@@ -41,7 +41,7 @@ export default function CourseSettingInfoDialog({
               <p>
                 Course Setting is where you design and place controls for your orienteering courses.
                 This view allows you to visually position controls on the map, define the sequence competitors
-                will visit them, and configure control properties like codes and floor levels.
+                will visit them, and configure control properties like codes and floor levels. Use Stair highlight above the properties panel to highlight the selected staircase across all floors. Configure or convert stair nodes first in the Stairs screen. Choose None to clear the highlight.
                 The graph-based routing system will automatically calculate optimal routes between controls,
                 helping you understand leg difficulty and route choice options.
               </p>

@@ -2,6 +2,14 @@
 
 This is an experimental web application for analyzing and optimizing indoor orienteering courses. It is intended to run 100% on the client side, with no server-side components. The application can be used as a web app, a desktop app, MCP server or command-line tools. The web app can be run locally, in a container or easily hosted on any server that supports static file hosting. 
 
+## Stair planning
+
+Use **Stairs** after Graph Editor to annotate up/down stair nodes, connect matching adjacent floors without dragging, and highlight the same staircase across the map. Configure the floor order in Stairs, Graph Editor or 3D Model. Course Setting includes the same stair selector. [Requirements and workflow](docs/stair-view-requirements.md). [Versioned trial deployment](docs/versioned-deployment.md).
+
+## Post-race publishing proposal
+
+A proposed athlete-facing edition would provide a fixed link with organizer-controlled current and archived events, with route exploration, organizer-recommended routes, a personal Route Builder, and GPX export. See the [requirements draft in Chinese](docs/post-race-publishing-requirements.md) for scope, hosting options, and open decisions. This edition is not yet implemented.
+
 ## Contributing
 
 The best way to contribute is to create issues in the GitHub repo with specific feature requests or bug reports. 

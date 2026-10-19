@@ -5,6 +5,7 @@ import { Edit3, Route, Settings, BarChart3, Circle, Box, PenTool, Pickaxe, Flask
 import { Button } from "@indoor-o-route-analysis/ui";
 import EventManager from "@/components/event-manager";
 import CourseSetting from "@/components/course-setting";
+import StairsView from "@/components/stairs";
 import GraphEditor from "@/components/graph-editor";
 import RouteBuilder from "@/components/route-builder";
 import Model3D from "@/components/model-3d";
@@ -23,6 +24,7 @@ type Screen =
   | "landing"
   | "event-manager"
   | "course-setting"
+  | "stairs"
   | "graph-editor"
   | "route-builder"
   | "route-analysis"
@@ -32,7 +34,7 @@ type Screen =
   | "model-3d";
 
 const NAVIGABLE_SCREENS: Screen[] = [
-  "event-manager", "course-setting", "graph-editor", "route-builder",
+  "event-manager", "course-setting", "graph-editor", "stairs", "route-builder",
   "route-analysis", "event-analysis", "labs", "modify-graph", "model-3d",
 ];
 
@@ -203,6 +205,7 @@ export default function App() {
             <Route className="h-4 w-4" />
             {"Graph Editor"}
           </Button>
+          <Button variant={activeScreen === "stairs" ? "default" : "ghost"} onClick={() => navigateToScreen("stairs")} className="h-8 px-2 gap-1 rounded-none" title="Stair positions and connections">Stairs</Button>
           {flags.routeBuilder && (
           <Button
             variant={activeScreen === "route-builder" ? "default" : "ghost"}
@@ -292,6 +295,8 @@ export default function App() {
         <ModifyGraphPage />
       ) : activeScreen === "graph-editor" ? (
         <GraphEditor />
+      ) : activeScreen === "stairs" ? (
+        <StairsView key={selectedEvent?.id} />
       ) : activeScreen === "route-builder" ? (
         <RouteBuilder />
       ) : activeScreen === "route-analysis" ? (

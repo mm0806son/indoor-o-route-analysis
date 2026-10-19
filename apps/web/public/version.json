@@ -1,0 +1,9 @@
+{
+  "version": "0.2.0",
+  "release": "1017-stairs",
+  "features": [
+    "Stair view",
+    "Click-to-connect stairs",
+    "Explicit floor order"
+  ]
+}
