@@ -25,6 +25,7 @@ export function PublishedMap({
   routes,
   leg,
   showGraph,
+  showBackgroundMap = true,
   onNode,
   fitToken,
   onImage,
@@ -35,6 +36,7 @@ export function PublishedMap({
   routes: RouteHighlight[];
   leg?: { fromNodeId: string; toNodeId: string };
   showGraph: boolean;
+  showBackgroundMap?: boolean;
   onNode: (id: string) => void;
   fitToken: number;
   onImage: (canvas: HTMLCanvasElement) => void;
@@ -195,7 +197,7 @@ export function PublishedMap({
     ctx.scale(dpr, dpr);
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, size.width, size.height);
-    if (image)
+    if (image && showBackgroundMap)
       ctx.drawImage(
         image,
         offset.x,
@@ -237,6 +239,7 @@ export function PublishedMap({
     dims.height,
     race,
     showGraph,
+    showBackgroundMap,
     routes,
     leg,
   ]);

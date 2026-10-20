@@ -19,6 +19,10 @@ import {
   Undo2,
   Maximize,
   PanelBottomClose,
+  Box,
+  Map as MapIcon,
+  ImageOff,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   createPublishedRouteAnalyzer,
@@ -47,6 +51,7 @@ import {
 import { CandidateTable, formatRouteTime } from './candidate-table';
 import { DifficultyTag } from '@/components/route-analysis/difficulty-tag';
 import { PublishedMap } from './map';
+import { PublishedModel } from './model';
 import './viewer.css';
 function download(name: string, data: Blob) {
   const url = URL.createObjectURL(data),
@@ -220,6 +225,8 @@ function CourseViewer({
   const [message, setMessage] = useState(''),
     [help, setHelp] = useState(false),
     [graph, setGraph] = useState(true),
+    [viewMode, setViewMode] = useState<"2d" | "3d">("2d"),
+    [showBackgroundMap, setShowBackgroundMap] = useState(true),
     [fit, setFit] = useState(0),
     [collapsed, setCollapsed] = useState(false),
     [compare, setCompare] = useState(true);
@@ -399,13 +406,17 @@ function CourseViewer({
   );
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.matches('input,select,textarea')) return;
+      if (e.target instanceof HTMLElement && e.target.matches('input,select,textarea')) return;
       if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
       } else if (e.key.toLowerCase() === 'n') {
         e.preventDefault();
         create();
+      } else if (e.key.toLowerCase() === 'v') {
+        e.preventDefault(); setViewMode(mode => mode === '2d' ? '3d' : '2d');
+      } else if (e.key.toLowerCase() === 'm') {
+        e.preventDefault(); setShowBackgroundMap(value => !value);
       } else if (e.key.toLowerCase() === 'f') {
         setFit((x) => x + 1);
       } else if (e.key === '?') {
@@ -547,20 +558,21 @@ function CourseViewer({
   return (
     <>
       <div className="viewer-workspace">
-        <PublishedMap
+        {viewMode === "3d" ? <PublishedModel event={published.event} race={race} map={map} routes={highlights} courseId={course.id} legIndex={legIndex} runningSpeed={runningSpeed} showBackgroundMap={showBackgroundMap} showGraph={graph} fitToken={fit} onBack={()=>setViewMode("2d")}/> : <PublishedMap
           map={map}
           race={race}
           dataUrl={dataUrl}
           routes={highlights}
           leg={from && to ? { fromNodeId: from, toNodeId: to } : undefined}
           showGraph={graph}
+          showBackgroundMap={showBackgroundMap}
           onNode={(id) => {
             setVia((v) => [...v, id]);
             setMessage(`途经节点：${id}`);
           }}
           fitToken={fit}
           onImage={acceptMap}
-        />
+        />}
         <section className={`viewer-panel ${collapsed ? 'collapsed' : ''}`}>
           <div className="viewer-toolbar">
             <Icon label="新建路线 (N)" onClick={create} disabled={!ready}>
@@ -579,6 +591,12 @@ function CourseViewer({
               disabled={!future.length}
             >
               <Redo2 size={18} />
+            </Icon>
+            <Icon label={viewMode === '2d' ? '切换到 3D (V)' : '切换到 2D (V)'} onClick={()=>setViewMode(mode=>mode==='2d'?'3d':'2d')}>
+              {viewMode==='2d'?<Box size={18}/>:<MapIcon size={18}/>}
+            </Icon>
+            <Icon label={showBackgroundMap?'隐藏地图 (M)':'显示地图 (M)'} onClick={()=>setShowBackgroundMap(value=>!value)}>
+              {showBackgroundMap?<ImageOff size={18}/>:<ImageIcon size={18}/>}
             </Icon>
             <Icon label="适配整图 (F)" onClick={() => setFit((x) => x + 1)}>
               <Maximize size={18} />
@@ -957,11 +975,11 @@ function CourseViewer({
               条路线。点击卡片选择方案，开启“地图对比”同时查看其他方案。长度、预计时间和难度沿用路线分析规则；速度可在列表上方调整。卡片图标依次表示分支点、决策点、楼梯数和与先前赛段最短路线的重复比例。
             </p>
             <p>
-              在地图上点选途经节点，点击“采用此赛段”保存到我的路线。下方赛段表可切换和检查全程。拖动平移，双指或滚轮缩放。
+              在地图上点选途经节点，点击“采用此赛段”保存到我的路线。下方赛段表可切换和检查全程。2D 拖动平移、点选节点；3D 拖动旋转、双指移动和平移缩放。两种视图都支持滚轮缩放；隐藏地图后仍保留图节点和路线。
             </p>
             <p>
               快捷键：N 新建；Ctrl/Cmd+Z 撤销；Ctrl/Cmd+Shift+Z 重做；F
-              适配地图；B 下载备份；? 打开说明。
+              适配地图；V 切换 2D/3D；M 显示或隐藏地图；B 下载备份；? 打开说明。
             </p>
             <p>
               完成所有赛段后，输入起跑时间和总用时导出 GPX。下载地图后可在

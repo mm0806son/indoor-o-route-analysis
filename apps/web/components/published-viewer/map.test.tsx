@@ -144,6 +144,12 @@ it("completes PDF rasterization before exposing downloadable map and clears load
   expect(pdfFixture.destroy).toHaveBeenCalledOnce();
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.queryByText("正在加载地图…")).toBeNull();
+  context.drawImage.mockClear();
+  screen.rerender(<PublishedMap map={map} race={{}} dataUrl="https://host/published/event.json" routes={[]} showGraph={false} showBackgroundMap={false} onNode={()=>{}} fitToken={0} onImage={onImage}/>);
+  expect(context.drawImage).not.toHaveBeenCalled();
+  expect(onImage).toHaveBeenCalledOnce();
+  screen.rerender(<PublishedMap map={map} race={{}} dataUrl="https://host/published/event.json" routes={[]} showGraph={false} showBackgroundMap onNode={()=>{}} fitToken={0} onImage={onImage}/>);
+  expect(context.drawImage).toHaveBeenCalled();
 });
 it("shows PDF failures and does not expose a blank downloadable map", async () => {
   vi.stubGlobal("React", React);

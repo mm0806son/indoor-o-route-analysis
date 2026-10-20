@@ -14,6 +14,7 @@ const loader = vi.hoisted(() => ({ load: vi.fn() }));
 vi.mock('@/lib/published-loader', () => ({
   loadViewerPublication: loader.load,
 }));
+vi.mock('./model', () => ({ PublishedModel: ({showBackgroundMap,routes}:{showBackgroundMap:boolean;routes:unknown[]}) => <div data-testid="model" data-map-visible={showBackgroundMap}>{routes.length}</div> }));
 vi.mock('./map', () => ({
   PublishedMap: ({
     routes,
@@ -230,4 +231,17 @@ it('shows distance time and difficulty for a via path alongside automatic candid
   expect(summary.textContent).toMatch(/\d+:\d{2}/);
   expect(summary.textContent).toMatch(/D\d+/);
   expect(screen.getByRole('list', { name: '候选路线' })).toBeTruthy();
+});
+
+it('switches 2D and 3D and preserves hidden map state through keyboard and toolbar controls',async()=>{
+ loader.load.mockResolvedValue({published:publishedA,dataUrl:location.href,localPreview:false});render(<PublishedViewer/>);
+ await screen.findByRole('button',{name:'切换到 3D (V)'});
+ fireEvent.click(screen.getByRole('button',{name:'隐藏地图 (M)'}));
+ fireEvent.click(screen.getByRole('button',{name:'切换到 3D (V)'}));
+ expect(screen.getByTestId('model').getAttribute('data-map-visible')).toBe('false');
+ fireEvent.keyDown(window,{key:'m'});
+ expect(screen.getByTestId('model').getAttribute('data-map-visible')).toBe('true');
+ fireEvent.keyDown(window,{key:'v'});
+ expect(screen.queryByTestId('model')).toBeNull();
+ expect(screen.getByRole('button',{name:'隐藏地图 (M)'})).toBeTruthy();
 });

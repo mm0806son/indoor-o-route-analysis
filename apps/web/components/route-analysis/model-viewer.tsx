@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from "react";
-import { useAppData } from "@indoor-o-route-analysis/ui";
+import { useRenderingData } from "@indoor-o-route-analysis/ui";
 import { RouteAnalyzer } from "@indoor-o-route-analysis/core";
 import { findPolygonForPoint } from "@indoor-o-route-analysis/core";
 import { getActualCourseControls } from "@indoor-o-route-analysis/core"; 
@@ -18,10 +18,11 @@ import { RouteVisualizer, PlaybackMarker, GraphVisualizer, type RouteSegment, ty
 import { Vector3, CatmullRomCurve3 } from "three";
 
 interface RouteAnalysisModelViewerProps {
+  onReady?: () => void;
   pdfUrl: string | null;
   scale: number;
   isPlaying: boolean;
-  onFrameAllTrigger?: boolean;
+  onFrameAllTrigger?: boolean | number;
   selectedCourseId: string | null;
   selectedLeg: number | null;
   selectedRoute: number | null;
@@ -53,6 +54,7 @@ export interface RouteAnalysisModelViewerHandle {
 
 const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, RouteAnalysisModelViewerProps>(({
   pdfUrl,
+  onReady,
   scale,
   isPlaying,
   onFrameAllTrigger,
@@ -72,7 +74,7 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
   customRouteSegments,
   timingSchedule,
 }, ref) => {
-  const { selectedEvent, runningSpeed } = useAppData();
+  const { selectedEvent, runningSpeed } = useRenderingData();
   const activeFloorRef = useRef<number>(-Infinity);
   
   // Ref to the 3D viewer to access canvas
@@ -110,6 +112,7 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
   const activeMapData = useMemo<MapData | undefined>(() => selectedEvent?.raceCourses?.[0]?.maps?.[0], [selectedEvent]);
 
   const routeData = useMemo(() => {
+    if (customRouteSegments !== undefined) return null;
     let errorFound = false;
 
     const raceCourse = selectedEvent?.raceCourses?.[0];
@@ -286,7 +289,7 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
     });
 
     return { segments: errorFound ? [] : allSegments, error: errorFound };
-  }, [selectedCourseId, selectedEvent, selectedLeg, selectedRoute, scale]);
+  }, [selectedCourseId, selectedEvent, selectedLeg, selectedRoute, scale, customRouteSegments]);
 
   // Use custom segments if provided (route-builder), otherwise use computed route data
   const displayRouteSegments = customRouteSegments ?? routeData?.segments;
@@ -481,6 +484,7 @@ const RouteAnalysisModelViewer = forwardRef<RouteAnalysisModelViewerHandle, Rout
     <Model3DViewer
       ref={viewerRef}
       pdfUrl={pdfUrl}
+      onReady={onReady}
       scale={scale}
       polygonOpacity={activePolygonOpacity}
       showBackgroundMap={showBackgroundMap}

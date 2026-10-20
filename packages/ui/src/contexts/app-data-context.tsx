@@ -533,3 +533,19 @@ export function useAppData() {
   }
   return context
 }
+
+
+/** Pure rendering input: published viewers never initialize the editor's storage. */
+type RenderingData = Pick<AppDataContextType, "selectedEvent" | "runningSpeed">;
+const RenderingDataContext = createContext<RenderingData | null>(null);
+export function RenderingDataProvider({ selectedEvent, runningSpeed, children }: RenderingData & { children: React.ReactNode }) {
+  const value = useMemo(() => ({ selectedEvent, runningSpeed }), [selectedEvent, runningSpeed]);
+  return <RenderingDataContext.Provider value={value}>{children}</RenderingDataContext.Provider>;
+}
+export function useRenderingData(): RenderingData {
+  const rendering = useContext(RenderingDataContext);
+  const editor = useContext(AppDataContext);
+  if (rendering) return rendering;
+  if (editor) return { selectedEvent: editor.selectedEvent, runningSpeed: editor.runningSpeed };
+  throw new Error("Rendering data provider is missing");
+}

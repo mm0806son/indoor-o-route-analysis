@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "re
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
-import { useAppData } from "@indoor-o-route-analysis/ui";
+import { useRenderingData } from "@indoor-o-route-analysis/ui";
 import { getEventTransform, getPageIndexForEventPos } from "@indoor-o-route-analysis/core";
 import type { MapData, Polygon } from "@indoor-o-route-analysis/core";
 import { mapToWorld, worldToMap, worldToVector3, getPolygonElevation } from "@indoor-o-route-analysis/core/3d";
@@ -30,11 +30,11 @@ function ViewerController({ expose }: { expose: (api: R3FApi) => void }) {
   return null;
 }
 
-function CameraController({ onFrameAll }: { onFrameAll: boolean }) {
+function CameraController({ onFrameAll }: { onFrameAll: boolean | number }) {
   const { camera, gl } = useThree();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
-  const { selectedEvent } = useAppData();
+  const { selectedEvent } = useRenderingData();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -200,7 +200,7 @@ function Scene({
   maxVisibilityElevationRef?: React.MutableRefObject<number>;
   children?: React.ReactNode;
 }) {
-  const { selectedEvent } = useAppData();
+  const { selectedEvent } = useRenderingData();
   const [mapTexture, setMapTexture] = useState<THREE.Texture | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
   const groupRef = useRef<THREE.Group>(null);
@@ -475,7 +475,8 @@ function Scene({
 export interface Model3DViewerProps {
   pdfUrl: string | null;
   scale: number;
-  onFrameAllTrigger?: boolean;
+  onReady?: () => void;
+  onFrameAllTrigger?: boolean | number;
   polygonOpacity?: number;
   showBackgroundMap?: boolean;
   maxVisibilityElevationRef?: React.MutableRefObject<number>;
@@ -498,6 +499,7 @@ const Model3DViewer = forwardRef<Model3DViewerHandle, Model3DViewerProps>(
     {
       pdfUrl,
       scale,
+      onReady,
       onFrameAllTrigger = false,
       polygonOpacity = 0.9,
       showBackgroundMap = true,
@@ -506,7 +508,7 @@ const Model3DViewer = forwardRef<Model3DViewerHandle, Model3DViewerProps>(
     },
     ref,
   ) => {
-    const { selectedEvent } = useAppData();
+    const { selectedEvent } = useRenderingData();
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const r3fApi = useRef<R3FApi | null>(null);
 
@@ -606,6 +608,7 @@ const Model3DViewer = forwardRef<Model3DViewerHandle, Model3DViewerProps>(
           gl={{ preserveDrawingBuffer: true }}
           onCreated={(state) => {
              canvasRef.current = state.gl.domElement;
+             onReady?.();
           }}
         >
           <ViewerController expose={(api) => r3fApi.current = api} />

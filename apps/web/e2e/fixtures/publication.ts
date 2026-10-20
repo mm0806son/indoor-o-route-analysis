@@ -35,6 +35,20 @@ export const testEvent: EventData = {
           mapPositionBottomRight: { x: 200, y: 120 },
         },
       ],
+      polygons: [
+        {
+          id: "floor",
+          level: 0,
+          elevation: 0,
+          origin: { x: 0, y: 0 },
+          points: [
+            { x: 0, y: 0 },
+            { x: 200, y: 0 },
+            { x: 200, y: 120 },
+            { x: 0, y: 120 },
+          ],
+        },
+      ],
       vertices: [
         { id: "S", x: 20, y: 60 },
         { id: "A", x: 70, y: 25 },

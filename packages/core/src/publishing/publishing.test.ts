@@ -411,3 +411,63 @@ it("removes XML-forbidden Unicode from route names while preserving emoji", () =
   expect(doc.querySelector("parsererror")).toBeNull();
   expect(doc.querySelector("name")?.textContent).toBe("A🏃");
 });
+
+describe("published 3D rendering data", () => {
+  it("preserves polygon origin, explicit height, holes and world coordinates without publishing private routes", async () => {
+    const { mapToWorld } = await import("../transformations");
+    const event = fixture();
+    const polygon = {
+      id: "floor-basement",
+      level: -1,
+      elevation: -3,
+      origin: { x: 12, y: 10 },
+      points: [
+        { x: 0, y: 0 },
+        { x: 50, y: 0 },
+        { x: 50, y: 50 },
+        { x: 0, y: 50 },
+      ],
+      holes: [
+        [
+          { x: 20, y: 20 },
+          { x: 25, y: 20 },
+          { x: 25, y: 25 },
+        ],
+      ],
+    };
+    event.raceCourses![0].polygons = [polygon];
+    const published = createPublishedEvent(event, {
+      eventId: "3d-race",
+      revision: "v1",
+      courseIds: ["c"],
+    });
+    const race = parsePublishedEvent(JSON.parse(JSON.stringify(published)))
+      .event.raceCourses![0];
+    expect(race.polygons).toEqual([polygon]);
+    expect(race.customRoutes).toBeUndefined();
+    const point = { x: 15, y: 17 };
+    expect(mapToWorld(point, race.polygons![0], race.maps![0])).toEqual(
+      mapToWorld(point, polygon, event.raceCourses![0].maps![0]),
+    );
+    expect(mapToWorld(point, race.polygons![0], race.maps![0])).toEqual({
+      x: 3,
+      y: -7,
+      z: -3,
+    });
+  });
+  it("preserves unspecified heights for the existing level-based 3D fallback", async () => {
+    const { getPolygonElevation } = await import("../transformations");
+    const event = fixture();
+    event.raceCourses![0].polygons = [
+      { id: "floor-one", level: 1, origin: { x: 3, y: 7 }, points: [] },
+    ];
+    const published = createPublishedEvent(event, {
+      eventId: "3d-race",
+      revision: "v1",
+      courseIds: ["c"],
+    });
+    const polygon = published.event.raceCourses![0].polygons![0];
+    expect(polygon.elevation).toBeUndefined();
+    expect(getPolygonElevation(polygon)).toBe(3);
+  });
+});

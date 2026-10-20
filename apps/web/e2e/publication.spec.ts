@@ -274,3 +274,51 @@ test("mobile touch pans and pinches the map without selecting route nodes", asyn
   ).toBeDisabled();
   await cdp.detach();
 });
+
+test("athlete switches 3D, hides map, and returns to route editing without organizer storage", async ({
+  page,
+}) => {
+  await servePublication(page);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/viewer");
+  const map = page.locator("canvas[data-map-ready=true]");
+  await expect(map).toBeVisible();
+  await expect(page.getByRole("list", { name: "候选路线" })).toBeVisible();
+  const before = await map.evaluate((canvas) =>
+    (canvas as HTMLCanvasElement).toDataURL(),
+  );
+  await page.getByRole("button", { name: "隐藏地图 (M)", exact: true }).click();
+  await expect
+    .poll(() =>
+      map.evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL()),
+    )
+    .not.toBe(before);
+  await page
+    .getByRole("button", { name: "切换到 3D (V)", exact: true })
+    .click();
+  const model = page.getByTestId("published-3d");
+  await expect(model).toHaveAttribute("data-model-ready", "true", {
+    timeout: 45000,
+  });
+  await expect(model.locator("canvas")).toBeVisible();
+  await expect(model).toHaveAttribute("data-map-visible", "false");
+  await page.getByRole("button", { name: "显示地图 (M)", exact: true }).click();
+  await expect(model).toHaveAttribute("data-map-visible", "true");
+  await page.getByRole("button", { name: "选择方案 2", exact: true }).click();
+  await page
+    .getByRole("button", { name: "切换到 2D (V)", exact: true })
+    .click();
+  await expect(map).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "选择方案 2", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "采用此赛段", exact: true }).click();
+  await expect(page.getByText(/已完成 1\/2 段/)).toBeVisible();
+  expect(
+    await page.evaluate(async () =>
+      (await indexedDB.databases()).map((db) => db.name),
+    ),
+  ).not.toContain("OrienteeringRouteAnalysis");
+  expect(errors).toEqual([]);
+});
