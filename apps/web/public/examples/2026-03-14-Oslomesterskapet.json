@@ -1,5 +1,5 @@
 {
-  "id": "17233f43-7443-4257-9c55-92d00a8426f5",
+  "id": "f876d503-583f-4247-9202-f9375598a73a",
   "name": "Åpent Oslomesterskap Innendørs Orientering",
   "startTime": {
     "date": "2026-03-14"
@@ -5791,16 +5791,18 @@
           "type": "edge"
         },
         {
-          "from": "1290",
-          "to": "1291",
+          "from": "1291",
+          "to": "1290",
           "label": "",
-          "type": "edge"
+          "type": "edge",
+          "oneWay": true
         },
         {
           "from": "1292",
           "to": "1293",
           "label": "",
-          "type": "edge"
+          "type": "edge",
+          "oneWay": true
         },
         {
           "from": "1293",
